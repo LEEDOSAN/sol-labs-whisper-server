@@ -8,3 +8,8 @@
 ## 엔드포인트
 - GET /health
 - POST /transcribe
+
+## 성능
+- 1시간 파일 기준 약 4분 처리
+- Whisper 청크 병렬 처리
+- 최대 2시간 파일 지원 (200MB)
