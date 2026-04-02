@@ -75,11 +75,9 @@ def transcribe(body: TranscribeRequest):
         # 5-6. 각 청크 Whisper API 전송 + 결과 합치기
         client = OpenAI(api_key=OPENAI_API_KEY)
         full_transcript = ""
-        all_segments = []
+        all_chunk_segments = []
 
-        for idx, chunk_path in enumerate(chunk_files):
-            offset = idx * CHUNK_DURATION
-
+        for chunk_path in chunk_files:
             with open(chunk_path, "rb") as audio:
                 result = client.audio.transcriptions.create(
                     model="whisper-1",
@@ -91,19 +89,28 @@ def transcribe(body: TranscribeRequest):
             full_transcript += result.text
 
             if result.segments:
-                for seg in result.segments:
-                    all_segments.append(
-                        {
-                            "start": round(seg["start"] + offset, 2),
-                            "end": round(seg["end"] + offset, 2),
-                            "text": seg["text"],
-                        }
-                    )
+                all_chunk_segments.append(result.segments)
+
+        # segments 합치기 (객체 속성 → model_dump 변환)
+        segments_combined = []
+        offset = 0.0
+        for chunk_segments in all_chunk_segments:
+            for seg in chunk_segments:
+                seg_dict = seg.model_dump() if hasattr(seg, 'model_dump') else dict(seg)
+                segments_combined.append({
+                    "start": seg_dict["start"] + offset,
+                    "end": seg_dict["end"] + offset,
+                    "text": seg_dict["text"]
+                })
+            if chunk_segments:
+                last = chunk_segments[-1]
+                last_dict = last.model_dump() if hasattr(last, 'model_dump') else dict(last)
+                offset += last_dict["end"]
 
         # 8. 결과 반환
         return {
             "transcript": full_transcript,
-            "segments": all_segments,
+            "segments": segments_combined,
         }
 
     except HTTPException:
