@@ -2,6 +2,7 @@ import os
 import glob
 import subprocess
 import tempfile
+import concurrent.futures
 import requests as req
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -72,22 +73,29 @@ def transcribe(body: TranscribeRequest):
         if not chunk_files:
             raise HTTPException(status_code=500, detail="청크 분할 실패")
 
-        # 5-6. 각 청크 Whisper API 전송 + 결과 합치기
+        # 5-6. 각 청크 Whisper API 병렬 전송 + 결과 합치기
         client = OpenAI(api_key=OPENAI_API_KEY)
-        full_transcript = ""
-        all_chunk_segments = []
 
-        for chunk_path in chunk_files:
+        def transcribe_chunk(chunk_path: str):
             with open(chunk_path, "rb") as audio:
-                result = client.audio.transcriptions.create(
+                return client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio,
                     language="ko",
                     response_format="verbose_json",
                 )
 
-            full_transcript += result.text
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(transcribe_chunk, cp)
+                for cp in chunk_files
+            ]
+            results = [f.result() for f in futures]
 
+        full_transcript = ""
+        all_chunk_segments = []
+        for result in results:
+            full_transcript += result.text
             if result.segments:
                 all_chunk_segments.append(result.segments)
 
