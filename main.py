@@ -1,17 +1,21 @@
 import os
+import re
+import json
 import glob
 import subprocess
 import tempfile
 import concurrent.futures
 import requests as req
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from openai import OpenAI
+import anthropic
 
 app = FastAPI()
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 RAILWAY_API_KEY = os.environ.get("RAILWAY_API_KEY")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 CHUNK_DURATION = 1200  # 20분(초)
 
@@ -132,3 +136,272 @@ def transcribe(body: TranscribeRequest):
                 os.remove(f)
             except OSError:
                 pass
+
+
+# ──────────────────────────────────────────
+# Claude 회의록 분석 엔드포인트
+# ──────────────────────────────────────────
+
+SPEAKER_DETECTION_RULES = """## 발화자 구분 지침 (반드시 준수)
+1. 참석자 목록과 직책을 먼저 확인한 후 분석을 시작하세요.
+2. [pause Xs] 마커는 발화자 전환 가능성이 높습니다.
+3. 직책별 발화 패턴 힌트:
+   - 대표/CEO/사장 → 결정, 지시, 방향 제시, 최종 승인
+   - 팀장/과장/매니저 → 보고, 제안, 중간 정리, 일정 조율
+   - 개발자/엔지니어 → 기술 설명, 구현 방법, 난이도 평가
+   - 디자이너 → 시각적 요소, 사용자 경험, UI/UX 관련
+4. 대화 중 이름이 직접 언급되면 해당 발화자 또는 다음 응답자를 확정하세요.
+5. 질문→답변 패턴으로 발화자를 추정하세요.
+6. 발화자 수는 참석자 수 이내로 제한하세요.
+7. 불확실해도 가장 가능성 높은 참석자 이름을 사용하세요.
+8. 발화 흐름 단위로 묶어서 반환하세요.
+9. Whisper segments의 start 값을 Math.round()하여 timeIndex로 사용."""
+
+CHUNK_PROMPT = f"""주어진 회의 대화록 구간을 분석하세요.
+반드시 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요.
+Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
+비용·기간·견적을 추정하지 마세요. 회의에서 실제 언급된 금액·일정만 기록하세요.
+
+{SPEAKER_DETECTION_RULES}
+
+## 이전 구간 발화자 연속성
+- 이전 구간에서 식별된 발화자가 전달되면 반드시 같은 이름을 사용하세요.
+
+{{
+  "summary": "이 구간 핵심 내용 요약 (3~5문장)",
+  "decisions": ["결정사항1"],
+  "todos": ["할 일1"],
+  "speakers": ["발화자1"],
+  "keyTopics": ["주제1"],
+  "utterances": [
+    {{ "speaker": "발화자명", "text": "발화 내용", "timeIndex": 0 }}
+  ]
+}}"""
+
+FINAL_PROMPT = f"""당신은 회의록 분석 전문가입니다.
+여러 구간별 요약을 종합하여 전체 회의록을 분석하세요.
+반드시 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요.
+Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
+비용·기간·견적을 추정하지 마세요. 회의에서 실제 언급된 금액·일정만 기록하세요.
+참석자 정보에 직책이 포함된 경우, 할 일 배정 시 직책을 고려하세요.
+
+## meetingPurpose 작성 규칙
+- 반드시 1~2문장으로 작성
+- '이 미팅은 ~을 위해 진행됐습니다' 형식
+
+## 요약 우선순위 규칙
+### keyDiscussions: 2번+ 반복 → [반복 언급], 시간/날짜 → [일정], 금액 → [금액]
+### decisions: 확정된 날짜·금액·기간 반드시 포함
+### todos: high=날짜/금액/기간 언급, medium=2번+ 언급, low=1번 언급
+### nextActions: 업무 순서대로, 선행 조건은 → 로 연결
+
+{{
+  "meetingPurpose": "이 미팅은 ~을 위해 진행됐습니다.",
+  "coreTopics": ["주제1", "주제2"],
+  "keyDiscussions": [
+    {{ "topic": "논의 주제", "content": "상세 내용" }}
+  ],
+  "decisions": ["결정사항1"],
+  "todos": [
+    {{ "person": "담당자명", "task": "할 일", "priority": "high|medium|low" }}
+  ],
+  "nextActions": ["다음 액션1"]
+}}"""
+
+SINGLE_PROMPT = f"""당신은 회의록 분석 전문가입니다.
+주어진 회의 내용을 분석하여 반드시 아래 JSON 형식으로만 응답하세요.
+JSON 외 텍스트는 절대 포함하지 마세요.
+Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
+비용·기간·견적을 추정하지 마세요. 회의에서 실제 언급된 금액·일정만 기록하세요.
+참석자 정보에 직책이 포함된 경우, 할 일 배정 시 직책을 고려하세요.
+
+## meetingPurpose 작성 규칙
+- 반드시 1~2문장으로 작성
+- '이 미팅은 ~을 위해 진행됐습니다' 형식
+
+{SPEAKER_DETECTION_RULES}
+
+## 요약 우선순위 규칙
+### keyDiscussions: 2번+ 반복 → [반복 언급], 시간/날짜 → [일정], 금액 → [금액]
+### decisions: 확정된 날짜·금액·기간 반드시 포함
+### todos: high=날짜/금액/기간 언급, medium=2번+ 언급, low=1번 언급
+### nextActions: 업무 순서대로, 선행 조건은 → 로 연결
+
+{{
+  "meetingPurpose": "이 미팅은 ~을 위해 진행됐습니다.",
+  "coreTopics": ["주제1", "주제2"],
+  "keyDiscussions": [
+    {{ "topic": "논의 주제", "content": "상세 내용" }}
+  ],
+  "decisions": ["결정사항1"],
+  "todos": [
+    {{ "person": "담당자명", "task": "할 일", "priority": "high|medium|low" }}
+  ],
+  "nextActions": ["다음 액션1"],
+  "transcript": "전달받은 전체 대화록 그대로",
+  "utterances": [
+    {{ "speaker": "발화자명", "text": "발화 내용", "timeIndex": 0 }}
+  ]
+}}"""
+
+
+def split_segments_by_time(segments, chunk_seconds=1800):
+    """segments를 시간 기준으로 청크 분할 (30분 단위)"""
+    if not segments:
+        return []
+    chunks = []
+    current = []
+    chunk_start = segments[0].get("start", 0)
+    for seg in segments:
+        if seg.get("start", 0) - chunk_start >= chunk_seconds and current:
+            chunks.append(current)
+            current = []
+            chunk_start = seg.get("start", 0)
+        current.append(seg)
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+@app.post("/analyze")
+async def analyze_meeting(request: Request):
+    """Claude 회의록 분석 — Railway에서 시간 제한 없이 처리"""
+    body = await request.json()
+
+    # API 키 검증
+    api_key = body.get("api_key", "")
+    if api_key != RAILWAY_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="Anthropic API 키 미설정")
+
+    transcript = body.get("transcript", "")
+    segments = body.get("segments", [])
+    meeting_title = body.get("meetingTitle", "")
+    project_name = body.get("projectName", "")
+    attendees = body.get("attendees", [])
+
+    if not transcript or not meeting_title:
+        raise HTTPException(status_code=400, detail="대화록과 미팅 제목은 필수")
+
+    # 대화록 길이 제한
+    MAX_TRANSCRIPT = 50000
+    full_transcript = transcript[:MAX_TRANSCRIPT] if len(transcript) > MAX_TRANSCRIPT else transcript
+    attendees_str = ", ".join(attendees) if attendees else ""
+
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    try:
+        # 청크 분할
+        segment_chunks = split_segments_by_time(segments) if segments else []
+
+        if len(segment_chunks) >= 2:
+            # ── 청크 요약 방식 ──
+            chunk_summaries = []
+            all_utterances = []
+            previous_speakers = []
+
+            for i, chunk in enumerate(segment_chunks):
+                start_min = int(chunk[0].get("start", 0) / 60)
+                end_min = int(chunk[-1].get("start", 0) / 60) + 1
+                chunk_text = " ".join(s.get("text", "").strip() for s in chunk)
+                chunk_segs = json.dumps([
+                    {"start": round(s.get("start", 0), 1), "text": s.get("text", "").strip()}
+                    for s in chunk
+                ], ensure_ascii=False)
+
+                speaker_hint = ""
+                if previous_speakers:
+                    speaker_hint = f"\n이전 구간 발화자: {', '.join(previous_speakers)}\n동일 인물이면 같은 이름 사용."
+
+                chunk_content = f"""미팅 제목: {meeting_title}
+{f'참석자: {attendees_str}' if attendees_str else ''}
+구간: {start_min}분 ~ {end_min}분 ({i+1}/{len(segment_chunks)}){speaker_hint}
+
+=== 대화록 ===
+{chunk_text}
+
+=== Segments ===
+{chunk_segs}"""
+
+                try:
+                    chunk_msg = client.messages.create(
+                        model="claude-sonnet-4-5",
+                        max_tokens=2000,
+                        system=CHUNK_PROMPT,
+                        messages=[{"role": "user", "content": chunk_content}],
+                    )
+                    raw = chunk_msg.content[0].text if chunk_msg.content[0].type == "text" else ""
+                    chunk_summaries.append(f"[구간 {i+1}: {start_min}분~{end_min}분]\n{raw}")
+
+                    try:
+                        match = re.search(r'\{[\s\S]*\}', raw)
+                        if match:
+                            parsed = json.loads(match.group())
+                            if "utterances" in parsed:
+                                all_utterances.extend(parsed["utterances"])
+                                speakers = [u["speaker"] for u in parsed["utterances"]]
+                                previous_speakers = list(set(previous_speakers + speakers))
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                except Exception:
+                    pass
+
+            # 최종 분석
+            final_content = f"""미팅 제목: {meeting_title}
+{f'프로젝트명: {project_name}' if project_name else ''}
+{f'참석자: {attendees_str}' if attendees_str else ''}
+
+=== 구간별 요약 (총 {len(chunk_summaries)}개 구간) ===
+
+{chr(10).join(chunk_summaries)}"""
+
+            final_msg = client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=8000,
+                system=FINAL_PROMPT,
+                messages=[{"role": "user", "content": final_content}],
+            )
+            final_raw = final_msg.content[0].text if final_msg.content[0].type == "text" else ""
+            final_match = re.search(r'\{[\s\S]*\}', final_raw)
+            if not final_match:
+                raise HTTPException(status_code=500, detail="최종 분석 JSON 파싱 실패")
+
+            result = json.loads(final_match.group())
+            result["transcript"] = full_transcript
+            result["utterances"] = all_utterances
+            return result
+
+        else:
+            # ── 단일 분석 ──
+            segments_text = ""
+            if segments:
+                segments_text = f"\n=== Segments ===\n{json.dumps([{'start': round(s.get('start', 0), 1), 'text': s.get('text', '').strip()} for s in segments], ensure_ascii=False)}"
+
+            user_content = f"""미팅 제목: {meeting_title}
+{f'프로젝트명: {project_name}' if project_name else ''}
+{f'참석자: {attendees_str}' if attendees_str else ''}
+
+=== 회의 대화록 ===
+{full_transcript}{segments_text}"""
+
+            message = client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=8192,
+                system=SINGLE_PROMPT,
+                messages=[{"role": "user", "content": user_content}],
+            )
+            raw_text = message.content[0].text if message.content[0].type == "text" else ""
+            json_match = re.search(r'\{[\s\S]*\}', raw_text)
+            if not json_match:
+                raise HTTPException(status_code=500, detail="분석 JSON 파싱 실패")
+
+            result = json.loads(json_match.group())
+            result["transcript"] = full_transcript
+            return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
