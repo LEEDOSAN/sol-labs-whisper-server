@@ -22,7 +22,7 @@ def load_models():
     global whisper_model, align_model, align_metadata, diarize_model
     if whisper_model is None:
         whisper_model = whisperx.load_model(
-            "large-v3", device="cpu", compute_type="int8", language="ko"
+            "medium", device="cpu", compute_type="int8", language="ko"
         )
     if align_model is None:
         align_model, align_metadata = whisperx.load_align_model(
