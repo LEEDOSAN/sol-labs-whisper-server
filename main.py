@@ -1,37 +1,19 @@
 import os
+import glob
+import subprocess
 import tempfile
+import concurrent.futures
 import requests as req
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import whisperx
+from openai import OpenAI
 
 app = FastAPI()
 
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 RAILWAY_API_KEY = os.environ.get("RAILWAY_API_KEY")
-HF_TOKEN = os.environ.get("HUGGINGFACE_TOKEN")
 
-# WhisperX 모델 (서버 시작 후 첫 요청 시 1회 로딩)
-whisper_model = None
-align_model = None
-align_metadata = None
-diarize_model = None
-
-
-def load_models():
-    """WhisperX 모델 전역 로딩 (lazy init)"""
-    global whisper_model, align_model, align_metadata, diarize_model
-    if whisper_model is None:
-        whisper_model = whisperx.load_model(
-            "medium", device="cpu", compute_type="int8", language="ko"
-        )
-    if align_model is None:
-        align_model, align_metadata = whisperx.load_align_model(
-            language_code="ko", device="cpu"
-        )
-    if diarize_model is None and HF_TOKEN:
-        diarize_model = whisperx.DiarizationPipeline(
-            use_auth_token=HF_TOKEN, device="cpu"
-        )
+CHUNK_DURATION = 1200  # 20분(초)
 
 
 class TranscribeRequest(BaseModel):
@@ -51,10 +33,7 @@ def transcribe(body: TranscribeRequest):
     if body.api_key != RAILWAY_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # 모델 로딩
-    load_models()
-
-    input_path = ""
+    tmp_files: list[str] = []
 
     try:
         # 2. blob_url에서 파일 다운로드
@@ -67,37 +46,79 @@ def transcribe(body: TranscribeRequest):
         input_path = os.path.join(tempfile.gettempdir(), f"input{suffix}")
         with open(input_path, "wb") as f:
             f.write(resp.content)
+        tmp_files.append(input_path)
 
-        # 4. WhisperX 음성 인식
-        audio = whisperx.load_audio(input_path)
-        result = whisper_model.transcribe(audio, batch_size=16)
-
-        # 5. 정렬 (단어 단위 타임스탬프 정밀화)
-        result = whisperx.align(
-            result["segments"], align_model, align_metadata, audio, device="cpu"
+        # 4. ffmpeg 청크 분할 (20분 단위, 16kHz 모노 mp3)
+        chunk_pattern = os.path.join(tempfile.gettempdir(), "chunk_%03d.mp3")
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", input_path,
+                "-f", "segment",
+                "-segment_time", str(CHUNK_DURATION),
+                "-ar", "16000",
+                "-ac", "1",
+                "-acodec", "libmp3lame",
+                chunk_pattern,
+            ],
+            check=True,
+            capture_output=True,
         )
 
-        # 6. 발화자 구분 (diarization)
-        if diarize_model:
-            diarize_segments = diarize_model(audio)
-            result = whisperx.assign_word_speakers(diarize_segments, result)
+        chunk_files = sorted(
+            glob.glob(os.path.join(tempfile.gettempdir(), "chunk_*.mp3"))
+        )
+        tmp_files.extend(chunk_files)
 
-        # 7. 응답 구성
-        segments = []
-        full_text = ""
-        for seg in result.get("segments", []):
-            text = seg.get("text", "").strip()
-            segments.append({
-                "speaker": seg.get("speaker", "SPEAKER_00"),
-                "start": seg.get("start", 0),
-                "end": seg.get("end", 0),
-                "text": text,
-            })
-            full_text += text + " "
+        if not chunk_files:
+            raise HTTPException(status_code=500, detail="청크 분할 실패")
 
+        # 5-6. 각 청크 Whisper API 병렬 전송 + 결과 합치기
+        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        def transcribe_chunk(chunk_path: str):
+            with open(chunk_path, "rb") as audio:
+                return client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio,
+                    language="ko",
+                    response_format="verbose_json",
+                )
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(transcribe_chunk, cp)
+                for cp in chunk_files
+            ]
+            results = [f.result() for f in futures]
+
+        full_transcript = ""
+        all_chunk_segments = []
+        for result in results:
+            full_transcript += result.text
+            if result.segments:
+                all_chunk_segments.append(result.segments)
+
+        # segments 합치기 (객체 속성 → model_dump 변환)
+        segments_combined = []
+        offset = 0.0
+        for chunk_segments in all_chunk_segments:
+            for seg in chunk_segments:
+                seg_dict = seg.model_dump() if hasattr(seg, 'model_dump') else dict(seg)
+                segments_combined.append({
+                    "start": seg_dict["start"] + offset,
+                    "end": seg_dict["end"] + offset,
+                    "text": seg_dict["text"]
+                })
+            if chunk_segments:
+                last = chunk_segments[-1]
+                last_dict = last.model_dump() if hasattr(last, 'model_dump') else dict(last)
+                offset += last_dict["end"]
+
+        # 8. 결과 반환
         return {
-            "transcript": full_text.strip(),
-            "segments": segments,
+            "transcript": full_transcript,
+            "segments": segments_combined,
         }
 
     except HTTPException:
@@ -105,9 +126,9 @@ def transcribe(body: TranscribeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        # 임시 파일 삭제
-        if input_path:
+        # 7. /tmp 임시 파일 삭제
+        for f in tmp_files:
             try:
-                os.remove(input_path)
+                os.remove(f)
             except OSError:
                 pass
