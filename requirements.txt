@@ -1,7 +1,8 @@
 fastapi==0.115.0
 uvicorn==0.30.0
-openai>=1.50.0
 httpx>=0.27.0
 requests==2.32.0
 python-multipart==0.0.9
 ffmpeg-python==0.2.0
+whisperx
+pyannote.audio==3.1.1
