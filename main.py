@@ -293,6 +293,74 @@ def split_segments_by_time(segments, chunk_seconds=1800):
     return chunks
 
 
+def _clean_json_controls(raw: str) -> str:
+    """JSON 문자열 리터럴 내부의 raw 제어 문자(줄바꿈·탭 등)를 JSON 이스케이프로 치환.
+
+    Claude가 간혹 `"content": "라인1<raw \\n>라인2"`처럼 literal newline을
+    문자열 값에 넣어 json.loads가 `Expecting ',' delimiter` 에러를 내는 것을 방어.
+    큰따옴표 안/밖 상태를 추적하는 단순 state machine이라 false positive 없음.
+    """
+    out = []
+    in_string = False
+    escaped = False
+    for ch in raw:
+        if escaped:
+            out.append(ch)
+            escaped = False
+            continue
+        if ch == "\\" and in_string:
+            out.append(ch)
+            escaped = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            out.append(ch)
+            continue
+        if in_string:
+            code = ord(ch)
+            if ch == "\n":
+                out.append("\\n")
+            elif ch == "\r":
+                out.append("\\r")
+            elif ch == "\t":
+                out.append("\\t")
+            elif code < 0x20:
+                out.append(f"\\u{code:04x}")
+            else:
+                out.append(ch)
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _safe_parse_claude_json(raw: str) -> dict:
+    """Claude 응답 JSON 본문을 안전하게 파싱.
+
+    1차: strict json.loads
+    2차: 문자열 내부 제어 문자 정리 후 재시도
+    두 번 다 실패하면 원본 preview 로그 + RuntimeError
+    """
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as first_err:
+        cleaned = _clean_json_controls(raw)
+        try:
+            parsed = json.loads(cleaned)
+            print(
+                f"[json-parse] 제어 문자 정리 후 복구 성공 (1차 오류: {first_err})",
+                flush=True,
+            )
+            return parsed
+        except json.JSONDecodeError as second_err:
+            preview = raw[:500].replace("\n", "\\n")
+            print(f"[json-parse] 1차 오류: {first_err}", flush=True)
+            print(f"[json-parse] 2차 오류: {second_err}", flush=True)
+            print(f"[json-parse] 원본 preview(500자): {preview}", flush=True)
+            raise RuntimeError(
+                f"Claude 응답 JSON 파싱 실패: {second_err}. 원본 일부: {preview[:200]}"
+            )
+
+
 def _run_claude_analysis(body: dict) -> dict:
     """Claude 회의록 분석 본체 — 입력 검증 완료 상태의 body 기준.
     /analyze 엔드포인트와 백그라운드 job worker에서 공통 사용."""
@@ -354,12 +422,13 @@ def _run_claude_analysis(body: dict) -> dict:
                 try:
                     match = re.search(r'\{[\s\S]*\}', raw)
                     if match:
-                        parsed = json.loads(match.group())
+                        parsed = _safe_parse_claude_json(match.group())
                         if "utterances" in parsed:
                             all_utterances.extend(parsed["utterances"])
                             speakers = [u["speaker"] for u in parsed["utterances"]]
                             previous_speakers = list(set(previous_speakers + speakers))
-                except (json.JSONDecodeError, KeyError):
+                except (json.JSONDecodeError, KeyError, RuntimeError):
+                    # 청크 발화자 추출 실패는 무시 — 다음 구간으로 진행
                     pass
             except Exception:
                 pass
@@ -382,9 +451,13 @@ def _run_claude_analysis(body: dict) -> dict:
         final_raw = final_msg.content[0].text if final_msg.content[0].type == "text" else ""
         final_match = re.search(r'\{[\s\S]*\}', final_raw)
         if not final_match:
-            raise RuntimeError("최종 분석 JSON 파싱 실패")
+            print(
+                f"[final-parse] JSON 추출 실패, 원본 preview: {final_raw[:500]}",
+                flush=True,
+            )
+            raise RuntimeError("최종 분석 JSON 본문을 찾을 수 없습니다")
 
-        result = json.loads(final_match.group())
+        result = _safe_parse_claude_json(final_match.group())
         result["transcript"] = full_transcript
         result["utterances"] = all_utterances
         return result
@@ -410,9 +483,13 @@ def _run_claude_analysis(body: dict) -> dict:
     raw_text = message.content[0].text if message.content[0].type == "text" else ""
     json_match = re.search(r'\{[\s\S]*\}', raw_text)
     if not json_match:
-        raise RuntimeError("분석 JSON 파싱 실패")
+        print(
+            f"[single-parse] JSON 추출 실패, 원본 preview: {raw_text[:500]}",
+            flush=True,
+        )
+        raise RuntimeError("분석 JSON 본문을 찾을 수 없습니다")
 
-    result = json.loads(json_match.group())
+    result = _safe_parse_claude_json(json_match.group())
     result["transcript"] = full_transcript
     return result
 
