@@ -23,7 +23,9 @@ CHUNK_DURATION = 1200  # 20분(초)
 class TranscribeRequest(BaseModel):
     blob_url: str
     file_name: str
-    api_key: str
+    # api_key는 더 이상 본문으로 받지 않음 (헤더 X-Railway-Key 사용)
+    # 구버전 클라이언트 호환을 위해 Optional로 유지
+    api_key: str | None = None
 
 
 @app.get("/health")
@@ -32,9 +34,11 @@ def health():
 
 
 @app.post("/transcribe")
-def transcribe(body: TranscribeRequest):
-    # 1. API 키 검증
-    if body.api_key != RAILWAY_API_KEY:
+def transcribe(body: TranscribeRequest, request: Request):
+    # 1. API 키 검증 — 헤더 우선, 없으면 본문 fallback (구버전 호환)
+    header_key = request.headers.get("X-Railway-Key")
+    provided_key = header_key or body.api_key
+    if provided_key != RAILWAY_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     tmp_files: list[str] = []
@@ -268,8 +272,9 @@ async def analyze_meeting(request: Request):
     """Claude 회의록 분석 — Railway에서 시간 제한 없이 처리"""
     body = await request.json()
 
-    # API 키 검증
-    api_key = body.get("api_key", "")
+    # API 키 검증 — 헤더 우선, 없으면 본문 fallback (구버전 호환)
+    header_key = request.headers.get("X-Railway-Key")
+    api_key = header_key or body.get("api_key", "")
     if api_key != RAILWAY_API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
