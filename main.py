@@ -190,6 +190,8 @@ SPEAKER_DETECTION_RULES = """## 발화자 구분 지침 (반드시 준수)
 
 # 모든 프롬프트에 공통으로 포함되는 JSON 출력 엄격 규칙
 # — 과거 Claude가 문자열을 닫지 않고 raw newline을 뱉어 json.loads가 실패한 이력 방지
+# — 주의: 콘텐츠 길이·개수에 대한 제한은 두지 말 것. 발화자 구분(utterances)
+#         같은 배열 필드는 전체를 보존해야 하므로 "짧게 쓰라" 류 지시는 금지.
 JSON_OUTPUT_RULES = """## JSON 출력 필수 규칙 (반드시 준수)
 1. JSON 외 텍스트(설명·마크다운·코드블록)는 절대 포함하지 마세요.
 2. 모든 문자열은 반드시 `"`로 시작하고 같은 줄에서 반드시 `"`로 닫으세요.
@@ -198,8 +200,7 @@ JSON_OUTPUT_RULES = """## JSON 출력 필수 규칙 (반드시 준수)
 5. 문자열 값 안의 큰따옴표는 `\\"`로 이스케이프하세요.
 6. 문자열 값 안의 백슬래시는 `\\\\`로 이스케이프하세요.
 7. 출력 전 모든 중괄호·대괄호가 정상적으로 닫혔는지 확인하세요.
-8. 배열 마지막 요소 뒤에 trailing comma를 넣지 마세요.
-9. 응답 중간에 끊기지 않도록 간결하게 작성하세요 — 각 string 값은 가능한 짧게."""
+8. 배열 마지막 요소 뒤에 trailing comma를 넣지 마세요."""
 
 CHUNK_PROMPT = f"""주어진 회의 대화록 구간을 분석하세요.
 반드시 아래 JSON 형식으로만 응답하세요.
@@ -212,6 +213,14 @@ Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 
 ## 이전 구간 발화자 연속성
 - 이전 구간에서 식별된 발화자가 전달되면 반드시 같은 이름을 사용하세요.
+
+## utterances 배열 작성 규칙 (핵심 결과물 — 절대 생략 금지)
+- 구간의 **모든 발화**를 utterances 배열에 빠짐없이 포함하세요.
+- 발화자 구분은 이 서비스의 핵심 결과물이므로 utterances 배열을 비우거나
+  누락하면 안 됩니다.
+- 각 utterance는 한 사람이 연속으로 말한 흐름 단위로 묶어서 하나의 항목으로 만드세요.
+- 응답이 max_tokens 한도에 걸릴 것 같으면 summary/decisions/todos를 줄여서라도
+  utterances는 반드시 보존하세요.
 
 {{
   "summary": "이 구간 핵심 내용 요약 (3~5문장)",
@@ -264,6 +273,12 @@ Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 
 {JSON_OUTPUT_RULES}
 
+## utterances 배열 작성 규칙 (핵심 결과물 — 절대 생략 금지)
+- 대화록의 **모든 발화**를 utterances 배열에 빠짐없이 포함하세요.
+- 발화자 구분은 이 서비스의 핵심 결과물이므로 utterances 배열을 비우거나
+  누락하면 안 됩니다.
+- 각 utterance는 한 사람이 연속으로 말한 흐름 단위로 묶어서 하나의 항목으로 만드세요.
+
 ## meetingPurpose 작성 규칙
 - 반드시 1~2문장으로 작성
 - '이 미팅은 ~을 위해 진행됐습니다' 형식
@@ -310,6 +325,34 @@ def split_segments_by_time(segments, chunk_seconds=1800):
     if current:
         chunks.append(current)
     return chunks
+
+
+def _build_fallback_utterances(segments: list, attendees: list) -> list:
+    """Claude가 utterances를 누락했을 때 사용하는 최후의 방어선.
+
+    Whisper segments를 그대로 utterance로 변환. 발화자 정보는 없으므로
+    참석자 목록의 첫 번째 이름(없으면 '참석자')으로 채운다.
+    → 최소한 대화록 탭이 plain text가 아니라 타임스탬프 있는 형태로 렌더링됨.
+    """
+    if not segments:
+        return []
+    default_speaker = attendees[0] if attendees else "참석자"
+    # 참석자 이름에서 괄호 앞부분만 사용 (예: "김철수 (대표)" → "김철수")
+    if isinstance(default_speaker, str) and "(" in default_speaker:
+        default_speaker = default_speaker.split("(")[0].strip()
+    result = []
+    for seg in segments:
+        text = (seg.get("text") or "").strip()
+        if not text:
+            continue
+        result.append(
+            {
+                "speaker": default_speaker,
+                "text": text,
+                "timeIndex": int(round(seg.get("start", 0))),
+            }
+        )
+    return result
 
 
 def _safe_parse_claude_json(raw: str) -> dict:
@@ -402,7 +445,9 @@ def _run_claude_analysis(body: dict) -> dict:
             try:
                 chunk_msg = client.messages.create(
                     model="claude-sonnet-4-5",
-                    max_tokens=2000,
+                    # 20분 청크에 300개 내외의 utterance를 전부 담으려면 2000 토큰으로는 부족.
+                    # 4000 토큰으로 상향하여 청크별 발화 전체 보존 우선.
+                    max_tokens=4000,
                     system=CHUNK_PROMPT,
                     messages=[{"role": "user", "content": chunk_content}],
                 )
@@ -450,6 +495,13 @@ def _run_claude_analysis(body: dict) -> dict:
         result = _safe_parse_claude_json(final_match.group())
         result["transcript"] = full_transcript
         result["utterances"] = all_utterances
+        # 최후 방어선: 모든 청크에서 utterances를 못 뽑았으면 segments로 대체
+        if not result["utterances"]:
+            print(
+                "[chunked-fallback] all_utterances가 비어있어 segments로 대체",
+                flush=True,
+            )
+            result["utterances"] = _build_fallback_utterances(segments, attendees)
         return result
 
     # ── 단일 분석 ──
@@ -481,6 +533,13 @@ def _run_claude_analysis(body: dict) -> dict:
 
     result = _safe_parse_claude_json(json_match.group())
     result["transcript"] = full_transcript
+    # 최후 방어선: Claude가 utterances를 누락했으면 segments로 대체
+    if not result.get("utterances"):
+        print(
+            "[single-fallback] utterances 누락, segments로 대체",
+            flush=True,
+        )
+        result["utterances"] = _build_fallback_utterances(segments, attendees)
     return result
 
 
