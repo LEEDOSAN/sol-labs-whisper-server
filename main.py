@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from openai import OpenAI
 import anthropic
+from json_repair import repair_json
 
 app = FastAPI()
 
@@ -187,10 +188,25 @@ SPEAKER_DETECTION_RULES = """## 발화자 구분 지침 (반드시 준수)
 8. 발화 흐름 단위로 묶어서 반환하세요.
 9. Whisper segments의 start 값을 Math.round()하여 timeIndex로 사용."""
 
+# 모든 프롬프트에 공통으로 포함되는 JSON 출력 엄격 규칙
+# — 과거 Claude가 문자열을 닫지 않고 raw newline을 뱉어 json.loads가 실패한 이력 방지
+JSON_OUTPUT_RULES = """## JSON 출력 필수 규칙 (반드시 준수)
+1. JSON 외 텍스트(설명·마크다운·코드블록)는 절대 포함하지 마세요.
+2. 모든 문자열은 반드시 `"`로 시작하고 같은 줄에서 반드시 `"`로 닫으세요.
+3. 문자열 값 안에 줄바꿈이 필요하면 반드시 `\\n`으로 이스케이프하세요.
+4. 문자열 값 안에 raw 줄바꿈 문자(literal newline)를 절대 포함하지 마세요.
+5. 문자열 값 안의 큰따옴표는 `\\"`로 이스케이프하세요.
+6. 문자열 값 안의 백슬래시는 `\\\\`로 이스케이프하세요.
+7. 출력 전 모든 중괄호·대괄호가 정상적으로 닫혔는지 확인하세요.
+8. 배열 마지막 요소 뒤에 trailing comma를 넣지 마세요.
+9. 응답 중간에 끊기지 않도록 간결하게 작성하세요 — 각 string 값은 가능한 짧게."""
+
 CHUNK_PROMPT = f"""주어진 회의 대화록 구간을 분석하세요.
-반드시 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요.
+반드시 아래 JSON 형식으로만 응답하세요.
 Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 비용·기간·견적을 추정하지 마세요. 회의에서 실제 언급된 금액·일정만 기록하세요.
+
+{JSON_OUTPUT_RULES}
 
 {SPEAKER_DETECTION_RULES}
 
@@ -210,10 +226,12 @@ Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 
 FINAL_PROMPT = f"""당신은 회의록 분석 전문가입니다.
 여러 구간별 요약을 종합하여 전체 회의록을 분석하세요.
-반드시 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요.
+반드시 아래 JSON 형식으로만 응답하세요.
 Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 비용·기간·견적을 추정하지 마세요. 회의에서 실제 언급된 금액·일정만 기록하세요.
 참석자 정보에 직책이 포함된 경우, 할 일 배정 시 직책을 고려하세요.
+
+{JSON_OUTPUT_RULES}
 
 ## meetingPurpose 작성 규칙
 - 반드시 1~2문장으로 작성
@@ -240,10 +258,11 @@ Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 
 SINGLE_PROMPT = f"""당신은 회의록 분석 전문가입니다.
 주어진 회의 내용을 분석하여 반드시 아래 JSON 형식으로만 응답하세요.
-JSON 외 텍스트는 절대 포함하지 마세요.
 Claude AI 대신 SOL LABS AI로 표기하세요. 한국어로 작성하세요.
 비용·기간·견적을 추정하지 마세요. 회의에서 실제 언급된 금액·일정만 기록하세요.
 참석자 정보에 직책이 포함된 경우, 할 일 배정 시 직책을 고려하세요.
+
+{JSON_OUTPUT_RULES}
 
 ## meetingPurpose 작성 규칙
 - 반드시 1~2문장으로 작성
@@ -293,71 +312,42 @@ def split_segments_by_time(segments, chunk_seconds=1800):
     return chunks
 
 
-def _clean_json_controls(raw: str) -> str:
-    """JSON 문자열 리터럴 내부의 raw 제어 문자(줄바꿈·탭 등)를 JSON 이스케이프로 치환.
-
-    Claude가 간혹 `"content": "라인1<raw \\n>라인2"`처럼 literal newline을
-    문자열 값에 넣어 json.loads가 `Expecting ',' delimiter` 에러를 내는 것을 방어.
-    큰따옴표 안/밖 상태를 추적하는 단순 state machine이라 false positive 없음.
-    """
-    out = []
-    in_string = False
-    escaped = False
-    for ch in raw:
-        if escaped:
-            out.append(ch)
-            escaped = False
-            continue
-        if ch == "\\" and in_string:
-            out.append(ch)
-            escaped = True
-            continue
-        if ch == '"':
-            in_string = not in_string
-            out.append(ch)
-            continue
-        if in_string:
-            code = ord(ch)
-            if ch == "\n":
-                out.append("\\n")
-            elif ch == "\r":
-                out.append("\\r")
-            elif ch == "\t":
-                out.append("\\t")
-            elif code < 0x20:
-                out.append(f"\\u{code:04x}")
-            else:
-                out.append(ch)
-        else:
-            out.append(ch)
-    return "".join(out)
-
-
 def _safe_parse_claude_json(raw: str) -> dict:
     """Claude 응답 JSON 본문을 안전하게 파싱.
 
-    1차: strict json.loads
-    2차: 문자열 내부 제어 문자 정리 후 재시도
+    1차: strict json.loads (정상 응답)
+    2차: json_repair 라이브러리로 복구 시도 (Claude가 문자열을 닫지 않고
+         raw newline을 뱉는 패턴, 끝이 잘린 JSON, trailing comma 등 폭넓게 처리)
     두 번 다 실패하면 원본 preview 로그 + RuntimeError
+
+    자체 state-machine 방식은 문자열이 닫히지 않은 채 줄바꿈이 들어간 경우
+    in_string 상태가 어긋나 구조를 망가뜨렸기에 json_repair로 교체.
     """
     try:
         return json.loads(raw)
     except json.JSONDecodeError as first_err:
-        cleaned = _clean_json_controls(raw)
         try:
-            parsed = json.loads(cleaned)
+            # json_repair는 문자열이 닫히지 않은 경우, trailing comma, 누락된
+            # 브래킷 등 Claude 출력의 폭넓은 오류를 자동 복구한다.
+            repaired = repair_json(raw)
+            parsed = json.loads(repaired)
+            if not isinstance(parsed, dict):
+                raise RuntimeError(
+                    f"json_repair 결과가 dict가 아님: {type(parsed).__name__}"
+                )
             print(
-                f"[json-parse] 제어 문자 정리 후 복구 성공 (1차 오류: {first_err})",
+                f"[json-parse] json_repair 복구 성공 (1차 오류: {first_err})",
                 flush=True,
             )
             return parsed
-        except json.JSONDecodeError as second_err:
+        except Exception as repair_err:
             preview = raw[:500].replace("\n", "\\n")
             print(f"[json-parse] 1차 오류: {first_err}", flush=True)
-            print(f"[json-parse] 2차 오류: {second_err}", flush=True)
+            print(f"[json-parse] json_repair 실패: {repair_err}", flush=True)
             print(f"[json-parse] 원본 preview(500자): {preview}", flush=True)
             raise RuntimeError(
-                f"Claude 응답 JSON 파싱 실패: {second_err}. 원본 일부: {preview[:200]}"
+                f"Claude 응답 JSON 파싱 실패 (json_repair 포함): {repair_err}. "
+                f"원본 일부: {preview[:200]}"
             )
 
 
