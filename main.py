@@ -17,6 +17,29 @@ from json_repair import repair_json
 
 app = FastAPI()
 
+
+# ─────────────────────────────────────────────────────────
+# 텔레그램 봇 — 서버 시작/종료 시 함께 실행
+# TELEGRAM_BOT_TOKEN 없으면 봇만 비활성화, 나머지 서버는 정상 작동
+# ─────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup_event():
+    try:
+        from telegram_bot import start_telegram_bot
+        await start_telegram_bot()
+    except Exception as e:
+        print(f"[telegram-bot] 시작 실패 (서버는 정상 작동): {e}", flush=True)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    try:
+        from telegram_bot import stop_telegram_bot
+        await stop_telegram_bot()
+    except Exception as e:
+        print(f"[telegram-bot] 종료 실패: {e}", flush=True)
+
+
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 RAILWAY_API_KEY = os.environ.get("RAILWAY_API_KEY")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
