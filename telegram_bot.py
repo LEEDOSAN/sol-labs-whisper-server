@@ -76,20 +76,20 @@ def _is_admin(user_id) -> bool:
 
 
 def _get_user_role(user_id: str, data: dict) -> str | None:
-    """유저 역할 반환 — 대표는 TELEGRAM_ADMIN_ID로 자동 판별"""
+    """유저 역할 반환 — CEO는 TELEGRAM_ADMIN_ID로 자동 판별"""
     if _is_admin(user_id):
-        return "대표"
+        return "CEO"
     user = data["users"].get(user_id)
     return user["role"] if user else None
 
 
 def _ensure_admin_in_data(user, data: dict) -> dict:
-    """대표를 users에 자동 등록 (TELEGRAM_ADMIN_ID 기반)"""
+    """CEO를 users에 자동 등록 (TELEGRAM_ADMIN_ID 기반)"""
     uid = str(user.id)
-    name = user.full_name or user.username or "대표"
+    name = user.full_name or user.username or "CEO"
     username = user.username or ""
-    if uid not in data["users"] or data["users"][uid].get("role") != "대표":
-        data["users"][uid] = {"name": name, "role": "대표", "username": username}
+    if uid not in data["users"] or data["users"][uid].get("role") != "CEO":
+        data["users"][uid] = {"name": name, "role": "CEO", "username": username}
         _save_data(data)
     return data
 
@@ -234,7 +234,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not role:
         await update.message.reply_text(
             "👋 SOL LABS 업무관리 봇입니다!\n\n"
-            "아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.",
+            "아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.",
             reply_markup=_back_kb(),
         )
         return
@@ -261,7 +261,7 @@ async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = _get_user_role(user_id, data)
     if not role:
         await query.edit_message_text(
-            "아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.",
+            "아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.",
             reply_markup=_back_kb(),
         )
         return
@@ -284,7 +284,7 @@ async def cb_members_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(query.from_user.id)
     if not _is_admin(user_id):
-        await query.edit_message_text("❌ 멤버 관리는 대표만 가능합니다.", reply_markup=_back_kb())
+        await query.edit_message_text("❌ 멤버 관리는 CEO만 가능합니다.", reply_markup=_back_kb())
         return
 
     data = _load_data()
@@ -346,9 +346,11 @@ async def cb_member_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     name = target_info["name"]
     buttons = [
-        [InlineKeyboardButton("개발자", callback_data=f"mr:{target_uid}:개발자"),
-         InlineKeyboardButton("마케터", callback_data=f"mr:{target_uid}:마케터")],
-        [InlineKeyboardButton("직원", callback_data=f"mr:{target_uid}:직원")],
+        [InlineKeyboardButton("CEO", callback_data=f"mr:{target_uid}:CEO"),
+         InlineKeyboardButton("Developer", callback_data=f"mr:{target_uid}:Developer")],
+        [InlineKeyboardButton("CMO", callback_data=f"mr:{target_uid}:CMO"),
+         InlineKeyboardButton("🐝 여왕벌", callback_data=f"mr:{target_uid}:🐝 여왕벌")],
+        [InlineKeyboardButton("Member", callback_data=f"mr:{target_uid}:Member")],
         [InlineKeyboardButton("◀️ 멤버 목록", callback_data="members"),
          InlineKeyboardButton("🏠 메인메뉴", callback_data="menu")],
     ]
@@ -401,7 +403,7 @@ async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """/resetroles — 대표만 가능, 모든 역할 초기화"""
     user_id = str(update.effective_user.id)
     if not _is_admin(user_id):
-        await update.message.reply_text("❌ 이 명령어는 대표만 사용할 수 있어요.")
+        await update.message.reply_text("❌ 이 명령어는 CEO만 사용할 수 있어요.")
         return
 
     data = _load_data()
@@ -413,7 +415,7 @@ async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _save_data(data)
 
     await update.message.reply_text(
-        "✅ 모든 멤버 역할이 초기화되었습니다.\n대표 역할만 유지됩니다.",
+        "✅ 모든 멤버 역할이 초기화되었습니다.\nCEO 역할만 유지됩니다.",
         reply_markup=_main_menu_kb(user_id),
     )
 
@@ -430,7 +432,7 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     data = _load_data()
     if not _get_user_role(user_id, data):
-        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
     # 등록된 멤버를 버튼으로 표시
@@ -660,14 +662,14 @@ async def cb_done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = _load_data()
     user_role = _get_user_role(user_id, data)
     if not user_role:
-        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
     user_name = data["users"].get(user_id, {}).get("name", "")
     active = [
         t for t in data["tasks"]
         if t["status"] not in ("완료", "취소")
-        and (user_role == "대표" or t["assignee"] == user_name)
+        and (user_role == "CEO" or t["assignee"] == user_name)
     ]
 
     if not active:
@@ -731,14 +733,14 @@ async def cb_cancel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = _load_data()
     user_role = _get_user_role(user_id, data)
     if not user_role:
-        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
     user_name = data["users"].get(user_id, {}).get("name", "")
     active = [
         t for t in data["tasks"]
         if t["status"] not in ("완료", "취소")
-        and (user_role == "대표" or t["assignee"] == user_name)
+        and (user_role == "CEO" or t["assignee"] == user_name)
     ]
 
     if not active:
@@ -800,7 +802,7 @@ async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     data = _load_data()
     if not _get_user_role(user_id, data):
-        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
     user_name = data["users"][user_id]["name"]
@@ -908,7 +910,7 @@ async def cb_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     data = _load_data()
     if not _is_admin(user_id):
-        await query.edit_message_text("❌ 보고서는 대표만 확인할 수 있어요.", reply_markup=_back_kb())
+        await query.edit_message_text("❌ 보고서는 CEO만 확인할 수 있어요.", reply_markup=_back_kb())
         return
 
     tasks = data["tasks"]
@@ -1224,7 +1226,7 @@ async def start_telegram_bot():
     await _bot_app.bot.set_my_commands([
         BotCommand("start", "메인 메뉴"),
         BotCommand("menu", "메인 메뉴"),
-        BotCommand("resetroles", "역할 초기화 (대표 전용)"),
+        BotCommand("resetroles", "역할 초기화 (CEO 전용)"),
     ])
 
     # polling 시작
