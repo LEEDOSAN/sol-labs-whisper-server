@@ -27,9 +27,11 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
-# 파일 경로
-TASKS_FILE = Path(__file__).parent / "tasks.json"
-LANG_FILE = Path(__file__).parent / "users.json"
+# 데이터 파일 경로 — DATA_DIR 환경변수로 영구 저장 경로 지정 (Railway Volume 등)
+_DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).parent))
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+TASKS_FILE = _DATA_DIR / "tasks.json"
+LANG_FILE = _DATA_DIR / "users.json"
 
 # KST 타임존
 KST = ZoneInfo("Asia/Seoul")
