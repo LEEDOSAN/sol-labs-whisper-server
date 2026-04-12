@@ -12,7 +12,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import anthropic
-from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -477,6 +477,29 @@ def _back_kb(lang: str = "ko"):
     ])
 
 
+async def _prompt_text(query, context, prompt: str, lang: str):
+    """텍스트 입력 요청 — ForceReply로 그룹/DM 모두 작동"""
+    # 기존 인라인 메시지에서 버튼 제거
+    try:
+        await query.edit_message_text(prompt)
+    except Exception:
+        pass
+    # ForceReply로 새 메시지 전송 — 그룹에서도 봇이 답장을 수신 가능
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text=f"{prompt}\n\n/menu — {_t('menu_home', lang)}",
+        reply_markup=ForceReply(selective=True),
+    )
+
+
+async def _prompt_text_msg(message, prompt: str, lang: str):
+    """텍스트→텍스트 전환 시 ForceReply 프롬프트"""
+    await message.reply_text(
+        f"{prompt}\n\n/menu — {_t('menu_home', lang)}",
+        reply_markup=ForceReply(selective=True),
+    )
+
+
 def _back_refresh_kb(lang: str = "ko"):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(_t("menu_refresh", lang), callback_data="list"),
@@ -716,18 +739,16 @@ async def cb_task_assignee(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if assignee_key == "custom":
         context.user_data["state"] = "awaiting_task_assignee"
-        await query.edit_message_text(
-            f"{_t('task_title', lang)}\n\n{_t('enter_assignee', lang)}",
-            reply_markup=_back_kb(lang))
+        await _prompt_text(query, context,
+            f"{_t('task_title', lang)}\n\n{_t('enter_assignee', lang)}", lang)
         return
 
     data = _load_data()
     context.user_data["task_assignee"] = data["users"].get(assignee_key, {}).get("name", assignee_key)
     context.user_data["state"] = "awaiting_task_content"
     a = context.user_data["task_assignee"]
-    await query.edit_message_text(
-        f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {a}\n\n{_t('enter_content', lang)}",
-        reply_markup=_back_kb(lang))
+    await _prompt_text(query, context,
+        f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {a}\n\n{_t('enter_content', lang)}", lang)
 
 
 async def _process_task_assignee_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -735,9 +756,8 @@ async def _process_task_assignee_custom(update: Update, context: ContextTypes.DE
     name = update.message.text.strip()
     context.user_data["task_assignee"] = name
     context.user_data["state"] = "awaiting_task_content"
-    await update.message.reply_text(
-        f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {name}\n\n{_t('enter_content', lang)}",
-        reply_markup=_back_kb(lang))
+    await _prompt_text_msg(update.message,
+        f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {name}\n\n{_t('enter_content', lang)}", lang)
 
 
 async def _process_task_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -779,7 +799,7 @@ async def cb_task_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if option == "custom":
         context.user_data["state"] = "awaiting_task_deadline"
-        await query.edit_message_text(_t("enter_deadline", lang), reply_markup=_back_kb(lang))
+        await _prompt_text(query, context, _t("enter_deadline", lang), lang)
         return
 
     deadline = (datetime.now(KST).date() + timedelta(days=int(option))).strftime("%Y.%m.%d")
@@ -790,7 +810,8 @@ async def _process_task_deadline_custom(update: Update, context: ContextTypes.DE
     lang = _get_user_lang(str(update.effective_user.id))
     deadline = update.message.text.strip()
     if not re.match(r'^\d{4}\.\d{2}\.\d{2}$', deadline):
-        await update.message.reply_text(_t("bad_date", lang), reply_markup=_back_kb(lang))
+        context.user_data["state"] = "awaiting_task_deadline"
+        await _prompt_text_msg(update.message, _t("bad_date", lang) + "\n" + _t("enter_deadline", lang), lang)
         return
     context.user_data["state"] = None
     await _create_task_and_reply(update.effective_user.id, context, deadline, message=update.message)
@@ -997,9 +1018,8 @@ async def cb_update_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task_id = int(query.data.split(":")[1])
     context.user_data["state"] = "awaiting_progress"
     context.user_data["update_task_id"] = task_id
-    await query.edit_message_text(
-        f"{_t('upd_btn', lang)} #{task_id:03d}\n\n{_t('enter_progress', lang)}",
-        reply_markup=_back_kb(lang))
+    await _prompt_text(query, context,
+        f"{_t('upd_btn', lang)} #{task_id:03d}\n\n{_t('enter_progress', lang)}", lang)
 
 
 async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
