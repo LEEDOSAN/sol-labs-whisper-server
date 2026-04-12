@@ -70,6 +70,44 @@ def _get_group_chat_ids() -> list[str]:
     return data.get("group_chat_ids", [])
 
 
+def _is_admin(user_id) -> bool:
+    """TELEGRAM_ADMIN_ID 환경변수와 일치하는지 확인"""
+    return bool(TELEGRAM_ADMIN_ID) and str(user_id) == str(TELEGRAM_ADMIN_ID)
+
+
+def _get_user_role(user_id: str, data: dict) -> str | None:
+    """유저 역할 반환 — 대표는 TELEGRAM_ADMIN_ID로 자동 판별"""
+    if _is_admin(user_id):
+        return "대표"
+    user = data["users"].get(user_id)
+    return user["role"] if user else None
+
+
+def _ensure_admin_in_data(user, data: dict) -> dict:
+    """대표를 users에 자동 등록 (TELEGRAM_ADMIN_ID 기반)"""
+    uid = str(user.id)
+    name = user.full_name or user.username or "대표"
+    username = user.username or ""
+    if uid not in data["users"] or data["users"][uid].get("role") != "대표":
+        data["users"][uid] = {"name": name, "role": "대표", "username": username}
+        _save_data(data)
+    return data
+
+
+def _track_user(user):
+    """봇과 상호작용한 유저 정보 저장 (멤버 관리용)"""
+    data = _load_data()
+    if "known_users" not in data:
+        data["known_users"] = {}
+    uid = str(user.id)
+    name = user.full_name or user.username or "Unknown"
+    username = user.username or ""
+    existing = data["known_users"].get(uid)
+    if not existing or existing.get("name") != name:
+        data["known_users"][uid] = {"name": name, "username": username}
+        _save_data(data)
+
+
 # ──────────────────────────────────────────
 # 유틸리티
 # ──────────────────────────────────────────
@@ -142,26 +180,24 @@ def _format_task_card(task: dict, users: dict) -> str:
 # 키보드 빌더
 # ──────────────────────────────────────────
 
-def _main_menu_kb():
-    """메인 메뉴 인라인 키보드"""
-    return InlineKeyboardMarkup([
+def _main_menu_kb(user_id: str = None):
+    """역할별 메인 메뉴 인라인 키보드"""
+    is_admin = _is_admin(user_id) if user_id else False
+    buttons = [
         [InlineKeyboardButton("📋 업무 등록", callback_data="task"),
          InlineKeyboardButton("📊 전체 현황", callback_data="list")],
         [InlineKeyboardButton("✅ 완료 처리", callback_data="done"),
          InlineKeyboardButton("❌ 업무 취소", callback_data="cancel_menu")],
-        [InlineKeyboardButton("👤 내 업무", callback_data="mylist"),
-         InlineKeyboardButton("📈 보고서", callback_data="report")],
-    ])
-
-
-def _register_kb():
-    """역할 선택 키보드"""
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("대표", callback_data="reg:대표"),
-         InlineKeyboardButton("개발자", callback_data="reg:개발자")],
-        [InlineKeyboardButton("마케터", callback_data="reg:마케터"),
-         InlineKeyboardButton("직원", callback_data="reg:직원")],
-    ])
+    ]
+    if is_admin:
+        buttons.append([
+            InlineKeyboardButton("👤 내 업무", callback_data="mylist"),
+            InlineKeyboardButton("📈 보고서", callback_data="report"),
+        ])
+        buttons.append([InlineKeyboardButton("👥 멤버 관리", callback_data="members")])
+    else:
+        buttons.append([InlineKeyboardButton("👤 내 업무", callback_data="mylist")])
+    return InlineKeyboardMarkup(buttons)
 
 
 def _back_kb():
@@ -188,19 +224,25 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user_id = str(update.effective_user.id)
     data = _load_data()
+    _track_user(update.effective_user)
 
-    if user_id not in data["users"]:
+    # 대표 자동 등록
+    if _is_admin(user_id):
+        data = _ensure_admin_in_data(update.effective_user, data)
+
+    role = _get_user_role(user_id, data)
+    if not role:
         await update.message.reply_text(
-            "👋 SOL LABS 업무관리 봇입니다!\n\n먼저 역할을 등록해주세요:",
-            reply_markup=_register_kb(),
+            "👋 SOL LABS 업무관리 봇입니다!\n\n"
+            "아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.",
+            reply_markup=_back_kb(),
         )
         return
 
     name = data["users"][user_id]["name"]
-    role = data["users"][user_id]["role"]
     await update.message.reply_text(
         f"👋 {name}님 ({role})\nSOL LABS 업무관리 봇입니다!",
-        reply_markup=_main_menu_kb(),
+        reply_markup=_main_menu_kb(user_id),
     )
 
 
@@ -213,63 +255,166 @@ async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     data = _load_data()
 
-    if user_id not in data["users"]:
+    if _is_admin(user_id):
+        data = _ensure_admin_in_data(query.from_user, data)
+
+    role = _get_user_role(user_id, data)
+    if not role:
         await query.edit_message_text(
-            "먼저 역할을 등록해주세요:", reply_markup=_register_kb()
+            "아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.",
+            reply_markup=_back_kb(),
         )
         return
 
     name = data["users"][user_id]["name"]
-    role = data["users"][user_id]["role"]
     await query.edit_message_text(
         f"👋 {name}님 ({role})\nSOL LABS 업무관리 봇입니다!",
-        reply_markup=_main_menu_kb(),
+        reply_markup=_main_menu_kb(user_id),
     )
 
 
 # ──────────────────────────────────────────
-# /register — 역할 등록
+# 👥 멤버 관리 (대표 전용)
 # ──────────────────────────────────────────
 
-async def cmd_register(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """/register → 역할 선택 버튼 표시"""
-    await update.message.reply_text(
-        "역할을 선택해주세요:", reply_markup=_register_kb()
-    )
-
-
-async def cb_register(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """역할 등록 버튼 콜백"""
+async def cb_members_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """멤버 관리 — 역할 없는 유저 목록 표시"""
     query = update.callback_query
     await query.answer()
-    role = query.data.split(":")[1]
 
     user_id = str(query.from_user.id)
-    user_name = query.from_user.full_name or query.from_user.username or "Unknown"
+    if not _is_admin(user_id):
+        await query.edit_message_text("❌ 멤버 관리는 대표만 가능합니다.", reply_markup=_back_kb())
+        return
+
     data = _load_data()
+    known = data.get("known_users", {})
+    registered_ids = set(data["users"].keys())
 
-    # 대표 중복 방지
-    if role == "대표":
-        existing = any(
-            u["role"] == "대표" for uid, u in data["users"].items() if uid != user_id
-        )
-        if existing:
-            await query.edit_message_text(
-                "❌ 대표 역할은 이미 다른 분이 등록하셨어요.",
-                reply_markup=_back_kb(),
-            )
-            return
+    # 역할 없는 유저 + 이미 등록된 유저 분리
+    unassigned = {uid: info for uid, info in known.items() if uid not in registered_ids}
+    assigned = [
+        (uid, data["users"][uid]) for uid in data["users"]
+        if uid != user_id  # 대표 본인 제외
+    ]
 
-    data["users"][user_id] = {
-        "name": user_name,
+    lines = ["👥 멤버 관리\n"]
+
+    if assigned:
+        lines.append("── 등록된 멤버 ──")
+        for uid, uinfo in assigned:
+            lines.append(f"  {uinfo['name']} — {uinfo['role']}")
+        lines.append("")
+
+    buttons = []
+    if unassigned:
+        lines.append("── 역할 부여 대기 ──")
+        for uid, info in unassigned.items():
+            lines.append(f"  {info['name']}")
+            buttons.append([InlineKeyboardButton(
+                f"🏷️ {info['name']} 역할 부여",
+                callback_data=f"ma:{uid}",
+            )])
+        lines.append("")
+    else:
+        lines.append("새 멤버가 그룹에서 메시지를 보내면\n여기에 표시됩니다.")
+
+    buttons.append([InlineKeyboardButton("🏠 메인메뉴", callback_data="menu")])
+
+    await query.edit_message_text(
+        "\n".join(lines), reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+
+async def cb_member_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """멤버 선택 → 역할 선택 버튼 표시"""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_admin(str(query.from_user.id)):
+        await query.edit_message_text("❌ 권한이 없습니다.", reply_markup=_back_kb())
+        return
+
+    target_uid = query.data.split(":")[1]
+    data = _load_data()
+    known = data.get("known_users", {})
+    target_info = known.get(target_uid)
+
+    if not target_info:
+        await query.edit_message_text("❌ 멤버를 찾을 수 없어요.", reply_markup=_back_kb())
+        return
+
+    name = target_info["name"]
+    buttons = [
+        [InlineKeyboardButton("개발자", callback_data=f"mr:{target_uid}:개발자"),
+         InlineKeyboardButton("마케터", callback_data=f"mr:{target_uid}:마케터")],
+        [InlineKeyboardButton("직원", callback_data=f"mr:{target_uid}:직원")],
+        [InlineKeyboardButton("◀️ 멤버 목록", callback_data="members"),
+         InlineKeyboardButton("🏠 메인메뉴", callback_data="menu")],
+    ]
+
+    await query.edit_message_text(
+        f"👥 멤버 관리\n\n{name}님에게 부여할 역할을 선택해주세요:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def cb_assign_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """역할 부여 실행"""
+    query = update.callback_query
+    await query.answer()
+
+    if not _is_admin(str(query.from_user.id)):
+        await query.edit_message_text("❌ 권한이 없습니다.", reply_markup=_back_kb())
+        return
+
+    parts = query.data.split(":")
+    target_uid = parts[1]
+    role = parts[2]
+
+    data = _load_data()
+    known = data.get("known_users", {})
+    target_info = known.get(target_uid)
+
+    if not target_info:
+        await query.edit_message_text("❌ 멤버를 찾을 수 없어요.", reply_markup=_back_kb())
+        return
+
+    name = target_info["name"]
+    username = target_info.get("username", "")
+
+    data["users"][target_uid] = {
+        "name": name,
         "role": role,
-        "username": query.from_user.username or "",
+        "username": username,
     }
     _save_data(data)
 
+    admin_id = str(query.from_user.id)
     await query.edit_message_text(
-        f"✅ 등록 완료!\n이름: {user_name}\n역할: {role}",
-        reply_markup=_main_menu_kb(),
+        f"✅ @{name}님이 {role}(으)로 등록되었습니다.",
+        reply_markup=_main_menu_kb(admin_id),
+    )
+
+
+async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/resetroles — 대표만 가능, 모든 역할 초기화"""
+    user_id = str(update.effective_user.id)
+    if not _is_admin(user_id):
+        await update.message.reply_text("❌ 이 명령어는 대표만 사용할 수 있어요.")
+        return
+
+    data = _load_data()
+    # 대표 본인만 남기고 전부 제거
+    admin_entry = data["users"].get(user_id)
+    data["users"] = {}
+    if admin_entry:
+        data["users"][user_id] = admin_entry
+    _save_data(data)
+
+    await update.message.reply_text(
+        "✅ 모든 멤버 역할이 초기화되었습니다.\n대표 역할만 유지됩니다.",
+        reply_markup=_main_menu_kb(user_id),
     )
 
 
@@ -284,8 +429,8 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(query.from_user.id)
     data = _load_data()
-    if user_id not in data["users"]:
-        await query.edit_message_text("❌ 먼저 역할을 등록해주세요.", reply_markup=_register_kb())
+    if not _get_user_role(user_id, data):
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
     # 등록된 멤버를 버튼으로 표시
@@ -450,9 +595,9 @@ async def _create_task_and_reply(user_id, context, deadline, *, query=None, mess
         reply += f"\n\n[원본] {content_original}\n[번역] {translated}"
 
     if query:
-        await query.edit_message_text(reply, reply_markup=_main_menu_kb())
+        await query.edit_message_text(reply, reply_markup=_main_menu_kb(uid))
     elif message:
-        await message.reply_text(reply, reply_markup=_main_menu_kb())
+        await message.reply_text(reply, reply_markup=_main_menu_kb(uid))
 
 
 # ──────────────────────────────────────────
@@ -513,12 +658,12 @@ async def cb_done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(query.from_user.id)
     data = _load_data()
-    if user_id not in data["users"]:
-        await query.edit_message_text("❌ 먼저 역할을 등록해주세요.", reply_markup=_register_kb())
+    user_role = _get_user_role(user_id, data)
+    if not user_role:
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
-    user_role = data["users"][user_id]["role"]
-    user_name = data["users"][user_id]["name"]
+    user_name = data["users"].get(user_id, {}).get("name", "")
     active = [
         t for t in data["tasks"]
         if t["status"] not in ("완료", "취소")
@@ -569,7 +714,7 @@ async def cb_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(
         f"🟢 업무 #{task_id:03d} 완료!\n\n{_format_task_card(task, data['users'])}",
-        reply_markup=_main_menu_kb(),
+        reply_markup=_main_menu_kb(user_id),
     )
 
 
@@ -584,12 +729,12 @@ async def cb_cancel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(query.from_user.id)
     data = _load_data()
-    if user_id not in data["users"]:
-        await query.edit_message_text("❌ 먼저 역할을 등록해주세요.", reply_markup=_register_kb())
+    user_role = _get_user_role(user_id, data)
+    if not user_role:
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
-    user_role = data["users"][user_id]["role"]
-    user_name = data["users"][user_id]["name"]
+    user_name = data["users"].get(user_id, {}).get("name", "")
     active = [
         t for t in data["tasks"]
         if t["status"] not in ("완료", "취소")
@@ -639,7 +784,7 @@ async def cb_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_text(
         f"🔴 업무 #{task_id:03d} 취소!\n\n{_format_task_card(task, data['users'])}",
-        reply_markup=_main_menu_kb(),
+        reply_markup=_main_menu_kb(user_id),
     )
 
 
@@ -654,8 +799,8 @@ async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(query.from_user.id)
     data = _load_data()
-    if user_id not in data["users"]:
-        await query.edit_message_text("❌ 먼저 역할을 등록해주세요.", reply_markup=_register_kb())
+    if not _get_user_role(user_id, data):
+        await query.edit_message_text("❌ 아직 역할이 없습니다.\n대표에게 역할 부여를 요청해주세요.", reply_markup=_back_kb())
         return
 
     user_name = data["users"][user_id]["name"]
@@ -748,7 +893,7 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
     if translated and update_content != translated:
         reply += f"\n\n[원본] {update_content}\n[번역] {translated}"
 
-    await update.message.reply_text(reply, reply_markup=_main_menu_kb())
+    await update.message.reply_text(reply, reply_markup=_main_menu_kb(str(update.effective_user.id)))
 
 
 # ──────────────────────────────────────────
@@ -762,11 +907,7 @@ async def cb_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(query.from_user.id)
     data = _load_data()
-    if user_id not in data["users"]:
-        await query.edit_message_text("❌ 먼저 역할을 등록해주세요.", reply_markup=_register_kb())
-        return
-
-    if data["users"][user_id]["role"] != "대표":
+    if not _is_admin(user_id):
         await query.edit_message_text("❌ 보고서는 대표만 확인할 수 있어요.", reply_markup=_back_kb())
         return
 
@@ -859,9 +1000,11 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────
 
 async def _track_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """그룹 채팅방에서 메시지 수신 시 chat_id 저장"""
+    """그룹 채팅방에서 메시지 수신 시 chat_id + 유저 정보 저장"""
     if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
         _save_group_chat_id(update.effective_chat.id)
+    if update.effective_user and not update.effective_user.is_bot:
+        _track_user(update.effective_user)
 
 
 # ──────────────────────────────────────────
@@ -1047,11 +1190,13 @@ async def start_telegram_bot():
     # 명령어 핸들러
     _bot_app.add_handler(CommandHandler("start", cmd_start))
     _bot_app.add_handler(CommandHandler("menu", cmd_start))
-    _bot_app.add_handler(CommandHandler("register", cmd_register))
+    _bot_app.add_handler(CommandHandler("resetroles", cmd_resetroles))
 
     # 콜백 쿼리 핸들러 (인라인 키보드 버튼)
     _bot_app.add_handler(CallbackQueryHandler(cb_menu, pattern="^menu$"))
-    _bot_app.add_handler(CallbackQueryHandler(cb_register, pattern=r"^reg:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_members_start, pattern="^members$"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_member_select, pattern=r"^ma:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_assign_role, pattern=r"^mr:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_task_start, pattern="^task$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_task_assignee, pattern=r"^ta:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_task_deadline, pattern=r"^td:"))
@@ -1079,7 +1224,7 @@ async def start_telegram_bot():
     await _bot_app.bot.set_my_commands([
         BotCommand("start", "메인 메뉴"),
         BotCommand("menu", "메인 메뉴"),
-        BotCommand("register", "역할 등록"),
+        BotCommand("resetroles", "역할 초기화 (대표 전용)"),
     ])
 
     # polling 시작
