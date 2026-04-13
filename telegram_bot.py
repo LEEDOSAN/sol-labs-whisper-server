@@ -132,6 +132,11 @@ _T = {
         "search_empty": "🔍 검색 결과가 없습니다.",
         "monthly_title": "📊 이번 달 업무 통계",
         "overdue_auto": "⚠️ 업무 #{id} 마감일이 3일 이상 지났습니다. 확인해주세요!",
+        "daily_dm_title": "📋 오늘의 내 업무", "daily_dm_footer": "오늘도 화이팅! 💪",
+        "daily_dm_due_today": "🚨 오늘 마감!", "daily_dm_due_d": "D-{d}",
+        "daily_dm_summary": "진행중: {prog}건 | 대기: {pend}건",
+        "daily_ceo_title": "📊 오늘의 전체 업무 현황",
+        "daily_ceo_due": "오늘 마감: {today}건\n내일 마감: {tomorrow}건",
     },
     "en": {
         "menu_task": "📋 Add Task", "menu_status": "📊 Status",
@@ -211,6 +216,11 @@ _T = {
         "search_empty": "🔍 No results found.",
         "monthly_title": "📊 Monthly Stats",
         "overdue_auto": "⚠️ Task #{id} is 3+ days overdue. Please check!",
+        "daily_dm_title": "📋 Your Tasks for Today", "daily_dm_footer": "Have a great day! 💪",
+        "daily_dm_due_today": "🚨 Due today!", "daily_dm_due_d": "D-{d}",
+        "daily_dm_summary": "In Progress: {prog} | Pending: {pend}",
+        "daily_ceo_title": "📊 Today's Task Overview",
+        "daily_ceo_due": "Due today: {today}\nDue tomorrow: {tomorrow}",
     },
     "ru": {
         "menu_task": "📋 Задача", "menu_status": "📊 Статус",
@@ -290,6 +300,11 @@ _T = {
         "search_empty": "🔍 Ничего не найдено.",
         "monthly_title": "📊 Месячная статистика",
         "overdue_auto": "⚠️ Задача #{id} просрочена на 3+ дня!",
+        "daily_dm_title": "📋 Ваши задачи на сегодня", "daily_dm_footer": "Хорошего дня! 💪",
+        "daily_dm_due_today": "🚨 Сегодня!", "daily_dm_due_d": "D-{d}",
+        "daily_dm_summary": "В работе: {prog} | Ожидание: {pend}",
+        "daily_ceo_title": "📊 Обзор задач на сегодня",
+        "daily_ceo_due": "Сегодня: {today}\nЗавтра: {tomorrow}",
     },
     "uz": {
         "menu_task": "📋 Vazifa", "menu_status": "📊 Holat",
@@ -369,6 +384,11 @@ _T = {
         "search_empty": "🔍 Natija topilmadi.",
         "monthly_title": "📊 Oylik statistika",
         "overdue_auto": "⚠️ Vazifa #{id} 3+ kun kechikkan!",
+        "daily_dm_title": "📋 Bugungi vazifalaringiz", "daily_dm_footer": "Bugun ham omad! 💪",
+        "daily_dm_due_today": "🚨 Bugun!", "daily_dm_due_d": "D-{d}",
+        "daily_dm_summary": "Jarayonda: {prog} | Kutilmoqda: {pend}",
+        "daily_ceo_title": "📊 Bugungi vazifalar umumiy ko'rinishi",
+        "daily_ceo_due": "Bugun: {today}\nErtaga: {tomorrow}",
     },
 }
 
@@ -1905,6 +1925,93 @@ async def _daily_deadline_reminder(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ──────────────────────────────────────────
+# 스케줄 Job — 매일 오전 10시 개인 DM 알림
+# ──────────────────────────────────────────
+
+async def _daily_personal_dm(context: ContextTypes.DEFAULT_TYPE):
+    """매일 오전 10시(KST) 각 멤버에게 개인 업무 현황 DM"""
+    data = _load_data()
+    today = datetime.now(KST).date()
+    tasks = data.get("tasks", [])
+    users = data.get("users", {})
+
+    # 활성 업무만
+    active = [t for t in tasks if t["status"] not in ("완료", "취소")]
+
+    # CEO에게 전체 현황 DM
+    if TELEGRAM_ADMIN_ID:
+        ceo_lang = _get_user_lang(str(TELEGRAM_ADMIN_ID))
+        total = len(tasks)
+        comp = len([t for t in tasks if t["status"] == "완료"])
+        prog = len([t for t in tasks if t["status"] == "진행중"])
+        pend = len([t for t in tasks if t["status"] == "대기"])
+        over = len([t for t in tasks if t["status"] == "지연"])
+        due_today_cnt, due_tomorrow_cnt = 0, 0
+        for t in active:
+            try:
+                dl = datetime.strptime(t["deadline"], "%Y.%m.%d").date()
+                d = (dl - today).days
+                if d == 0:
+                    due_today_cnt += 1
+                elif d == 1:
+                    due_tomorrow_cnt += 1
+            except ValueError:
+                pass
+        lines = [
+            _t("daily_ceo_title", ceo_lang),
+            "━━━━━━━━━━━━━━━",
+            f"Total: {total}",
+            f"  {_t('st_done', ceo_lang)}: {comp}",
+            f"  {_t('st_progress', ceo_lang)}: {prog}",
+            f"  {_t('st_pending', ceo_lang)}: {pend}",
+            f"  {_t('st_overdue', ceo_lang)}: {over}",
+            "━━━━━━━━━━━━━━━",
+            _t("daily_ceo_due", ceo_lang).format(today=due_today_cnt, tomorrow=due_tomorrow_cnt),
+        ]
+        try:
+            await context.bot.send_message(chat_id=int(TELEGRAM_ADMIN_ID), text="\n".join(lines))
+        except Exception as e:
+            print(f"[daily-dm] CEO 전송 실패: {e}", flush=True)
+
+    # 각 멤버에게 본인 업무 DM
+    for uid, uinfo in users.items():
+        if _is_admin(uid):
+            continue  # CEO는 이미 위에서 처리
+        uname = uinfo.get("name", "")
+        my_tasks = sorted(
+            [t for t in active if t["assignee"] == uname],
+            key=lambda t: _PRI_ORDER.get(t.get("priority", ""), 3))
+        if not my_tasks:
+            continue
+        lang = _get_user_lang(uid)
+        prog_cnt = len([t for t in my_tasks if t["status"] == "진행중"])
+        pend_cnt = len([t for t in my_tasks if t["status"] == "대기"])
+        lines = [_t("daily_dm_title", lang), "━━━━━━━━━━━━━━━"]
+        for t in my_tasks:
+            try:
+                dl = datetime.strptime(t["deadline"], "%Y.%m.%d").date()
+                d = (dl - today).days
+                if d <= 0:
+                    due_str = _t("daily_dm_due_today", lang)
+                else:
+                    due_str = _t("daily_dm_due_d", lang).format(d=d)
+            except ValueError:
+                due_str = ""
+            pri_key = {"urgent": "pri_urgent", "normal": "pri_normal", "low": "pri_low"}.get(t.get("priority", ""), "")
+            pri_str = f" — {_t(pri_key, lang)}" if pri_key else ""
+            lines.append(f"#{t['id']:03d} {t['content'][:30]}{pri_str} ({due_str})")
+        lines.append("━━━━━━━━━━━━━━━")
+        lines.append(_t("daily_dm_summary", lang).format(prog=prog_cnt, pend=pend_cnt))
+        lines.append(_t("daily_dm_footer", lang))
+        try:
+            await context.bot.send_message(chat_id=int(uid), text="\n".join(lines))
+        except Exception:
+            pass  # DM 미시작 유저 무시
+
+    print("[daily-dm] 개인 DM 알림 전송 완료", flush=True)
+
+
+# ──────────────────────────────────────────
 # 스케줄 Job — 주간 보고서 (매주 월 9시 KST, 그룹 공개)
 # ──────────────────────────────────────────
 
@@ -2034,8 +2141,9 @@ async def start_telegram_bot():
     job_queue = _bot_app.job_queue
     if job_queue:
         job_queue.run_daily(_daily_deadline_reminder, time=dt_time(hour=9, minute=0, tzinfo=KST), name="daily_reminder")
+        job_queue.run_daily(_daily_personal_dm, time=dt_time(hour=10, minute=0, tzinfo=KST), name="daily_personal_dm")
         job_queue.run_daily(_weekly_report_job, time=dt_time(hour=9, minute=0, tzinfo=KST), days=(0,), name="weekly_report")
-        print("[telegram-bot] 스케줄 등록: 매일 9시 마감알림 + 매주 월 9시 주간보고", flush=True)
+        print("[telegram-bot] 스케줄 등록: 9시 마감알림 + 10시 개인DM + 매주 월 9시 주간보고", flush=True)
     else:
         print("[telegram-bot] JobQueue 미사용 (APScheduler 미설치)", flush=True)
 
