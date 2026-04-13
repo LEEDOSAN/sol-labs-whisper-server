@@ -7,6 +7,7 @@ import os
 import json
 import re
 import asyncio
+import threading
 from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -304,31 +305,39 @@ def _t(key: str, lang: str = "ko") -> str:
 
 
 # ──────────────────────────────────────────
-# 데이터 저장/로드
+# 데이터 저장/로드 (파일 잠금으로 동시 쓰기 방지)
 # ──────────────────────────────────────────
 
+_data_lock = threading.Lock()
+_lang_lock = threading.Lock()
+
+
 def _load_data() -> dict:
-    if TASKS_FILE.exists():
-        with open(TASKS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"next_id": 1, "users": {}, "tasks": []}
+    with _data_lock:
+        if TASKS_FILE.exists():
+            with open(TASKS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"next_id": 1, "users": {}, "tasks": []}
 
 
 def _save_data(data: dict):
-    with open(TASKS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    with _data_lock:
+        with open(TASKS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def _load_lang() -> dict:
-    if LANG_FILE.exists():
-        with open(LANG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+    with _lang_lock:
+        if LANG_FILE.exists():
+            with open(LANG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
 
 
 def _save_lang(prefs: dict):
-    with open(LANG_FILE, "w", encoding="utf-8") as f:
-        json.dump(prefs, f, ensure_ascii=False, indent=2)
+    with _lang_lock:
+        with open(LANG_FILE, "w", encoding="utf-8") as f:
+            json.dump(prefs, f, ensure_ascii=False, indent=2)
 
 
 def _get_user_lang(user_id) -> str:
@@ -395,15 +404,20 @@ def _restore_state(context, user_id: str):
 
 
 def _save_group_chat_id(chat_id: int):
-    # 저장 직전에 최신 데이터를 다시 읽어서 해당 필드만 수정
     cid = str(chat_id)
-    fresh = _load_data()
-    if "group_chat_ids" not in fresh:
-        fresh["group_chat_ids"] = []
-    if cid not in fresh["group_chat_ids"]:
-        fresh["group_chat_ids"].append(cid)
-        _save_data(fresh)
-        print(f"[telegram-bot] 그룹챗 등록: {chat_id}", flush=True)
+    with _data_lock:
+        if TASKS_FILE.exists():
+            with open(TASKS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {"next_id": 1, "users": {}, "tasks": []}
+        if "group_chat_ids" not in data:
+            data["group_chat_ids"] = []
+        if cid not in data["group_chat_ids"]:
+            data["group_chat_ids"].append(cid)
+            with open(TASKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            print(f"[telegram-bot] 그룹챗 등록: {chat_id}", flush=True)
 
 
 def _get_group_chat_ids() -> list[str]:
@@ -431,10 +445,15 @@ def _ensure_admin_in_data(user, data: dict) -> dict:
     name = user.full_name or user.username or "CEO"
     username = user.username or ""
     if uid not in data["users"] or data["users"][uid].get("role") != "CEO":
-        # 최신 데이터를 다시 읽어서 admin만 추가 후 저장 (다른 필드 보존)
-        fresh = _load_data()
-        fresh["users"][uid] = {"name": name, "role": "CEO", "username": username}
-        _save_data(fresh)
+        with _data_lock:
+            if TASKS_FILE.exists():
+                with open(TASKS_FILE, "r", encoding="utf-8") as f:
+                    fresh = json.load(f)
+            else:
+                fresh = {"next_id": 1, "users": {}, "tasks": []}
+            fresh["users"][uid] = {"name": name, "role": "CEO", "username": username}
+            with open(TASKS_FILE, "w", encoding="utf-8") as f:
+                json.dump(fresh, f, ensure_ascii=False, indent=2)
         data["users"][uid] = fresh["users"][uid]
     return data
 
@@ -443,18 +462,21 @@ def _track_user(user):
     uid = str(user.id)
     name = user.full_name or user.username or "Unknown"
     username = user.username or ""
-    # 변경 필요 여부를 먼저 확인
-    data = _load_data()
-    known = data.get("known_users", {})
-    existing = known.get(uid)
-    if existing and existing.get("name") == name:
-        return  # 변경 없음 — 파일 쓰기 불필요
-    # 저장 직전에 최신 데이터를 다시 읽어서 known_users만 수정 (다른 필드 보존)
-    fresh = _load_data()
-    if "known_users" not in fresh:
-        fresh["known_users"] = {}
-    fresh["known_users"][uid] = {"name": name, "username": username}
-    _save_data(fresh)
+    # 파일 잠금 내에서 읽기 → 수정 → 쓰기 원자적 수행
+    with _data_lock:
+        if TASKS_FILE.exists():
+            with open(TASKS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {"next_id": 1, "users": {}, "tasks": []}
+        if "known_users" not in data:
+            data["known_users"] = {}
+        existing = data["known_users"].get(uid)
+        if existing and existing.get("name") == name:
+            return  # 변경 없음
+        data["known_users"][uid] = {"name": name, "username": username}
+        with open(TASKS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 # ──────────────────────────────────────────
@@ -835,6 +857,38 @@ async def cb_assign_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _main_menu_kb(admin_id, lang))
 
 
+async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/debug — CEO 전용, tasks.json 원본 데이터 출력"""
+    user_id = str(update.effective_user.id)
+    if not _is_admin(user_id):
+        await update.message.reply_text("❌ CEO only")
+        return
+    data = _load_data()
+    users = data.get("users", {})
+    known = data.get("known_users", {})
+    groups = data.get("group_chat_ids", [])
+
+    lines = [
+        f"🔍 DEBUG — {TASKS_FILE}",
+        f"📁 DATA_DIR: {_DATA_DIR}",
+        f"📄 File exists: {TASKS_FILE.exists()}",
+        "",
+        f"👥 users ({len(users)}):",
+    ]
+    for uid, u in users.items():
+        lines.append(f"  [{uid}] {u.get('name')} — role={u.get('role')!r}")
+    lines.append(f"\n👤 known_users ({len(known)}):")
+    for uid, u in known.items():
+        lines.append(f"  [{uid}] {u.get('name')}")
+    lines.append(f"\n💬 groups: {groups}")
+    lines.append(f"📋 tasks: {len(data.get('tasks', []))}건")
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "\n..."
+    await update.message.reply_text(text)
+
+
 async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     lang = _get_user_lang(user_id)
@@ -872,8 +926,12 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 역할이 있는 모든 유저를 담당자 목록에 표시
-    members = {uid: uinfo for uid, uinfo in data["users"].items() if uinfo.get("role")}
-    print(f"[task-start] 담당자 목록: {len(members)}명 — {[u['name'] for u in members.values()]}", flush=True)
+    all_users = data.get("users", {})
+    members = {uid: uinfo for uid, uinfo in all_users.items() if uinfo.get("role")}
+    skipped = {uid: uinfo for uid, uinfo in all_users.items() if not uinfo.get("role")}
+    print(f"[task-start] 전체 users={len(all_users)} → 표시={len(members)} 제외={len(skipped)}", flush=True)
+    for uid, u in all_users.items():
+        print(f"  [{uid}] name={u.get('name')} role={u.get('role')!r}", flush=True)
 
     buttons = []
     row = []
@@ -1522,6 +1580,7 @@ async def start_telegram_bot():
     _bot_app.add_handler(CommandHandler("start", cmd_start))
     _bot_app.add_handler(CommandHandler("menu", cmd_start))
     _bot_app.add_handler(CommandHandler("resetroles", cmd_resetroles))
+    _bot_app.add_handler(CommandHandler("debug", cmd_debug))
 
     _bot_app.add_handler(CallbackQueryHandler(cb_menu, pattern="^menu$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_lang_start, pattern="^lang$"))
