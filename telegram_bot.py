@@ -477,25 +477,35 @@ def _back_kb(lang: str = "ko"):
     ])
 
 
+_REPLY_HINT = {
+    "ko": "(이 메시지에 답장으로 입력해주세요 💬)",
+    "en": "(Reply to this message to enter 💬)",
+    "ru": "(Ответьте на это сообщение 💬)",
+    "uz": "(Bu xabarga javob yozing 💬)",
+}
+
+
 async def _prompt_text(query, context, prompt: str, lang: str):
     """텍스트 입력 요청 — ForceReply로 그룹/DM 모두 작동"""
-    # 기존 인라인 메시지에서 버튼 제거
+    hint = _REPLY_HINT.get(lang, _REPLY_HINT["ko"])
+    # 기존 인라인 메시지의 버튼만 제거 (내용은 간략하게)
     try:
-        await query.edit_message_text(prompt)
+        await query.edit_message_text("⏳")
     except Exception:
         pass
-    # ForceReply로 새 메시지 전송 — 그룹에서도 봇이 답장을 수신 가능
+    # ForceReply로 새 메시지 1회만 전송
     await context.bot.send_message(
         chat_id=query.message.chat_id,
-        text=f"{prompt}\n\n/menu — {_t('menu_home', lang)}",
+        text=f"{prompt}\n{hint}\n\n/menu — {_t('menu_home', lang)}",
         reply_markup=ForceReply(selective=True),
     )
 
 
 async def _prompt_text_msg(message, prompt: str, lang: str):
     """텍스트→텍스트 전환 시 ForceReply 프롬프트"""
+    hint = _REPLY_HINT.get(lang, _REPLY_HINT["ko"])
     await message.reply_text(
-        f"{prompt}\n\n/menu — {_t('menu_home', lang)}",
+        f"{prompt}\n{hint}\n\n/menu — {_t('menu_home', lang)}",
         reply_markup=ForceReply(selective=True),
     )
 
