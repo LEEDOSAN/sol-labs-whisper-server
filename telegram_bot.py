@@ -112,6 +112,26 @@ _T = {
         # 언어
         "lang_set": "✅ 언어가 한국어로 설정되었습니다",
         "sel_lang": "🌐 언어를 선택해주세요:",
+        # 신규 기능
+        "menu_edit": "✏️ 업무 수정", "menu_reassign": "🔄 담당자 변경",
+        "menu_search": "🔍 업무 검색",
+        "menu_rpt_full": "📈 전체 보고서", "menu_monthly": "📊 월간 통계",
+        "st_overdue": "🔴 지연",
+        "card_priority": "우선순위",
+        "pri_urgent": "🔴 긴급", "pri_normal": "🟡 일반", "pri_low": "🟢 낮음",
+        "sel_priority": "우선순위를 선택해주세요:",
+        "edit_title": "✏️ 업무 수정", "edit_content": "📝 내용 수정", "edit_deadline": "📅 마감일 수정",
+        "edit_ok": "✏️ 업무 #{id} 수정 완료!",
+        "enter_edit": "수정할 내용을 입력해주세요:",
+        "sel_edit": "수정할 업무를 선택해주세요:",
+        "sel_edit_field": "수정할 항목을 선택해주세요:",
+        "reassign_title": "🔄 담당자 변경",
+        "reassign_ok": "🔄 업무 #{id} 담당자가 @{name}(으)로 변경되었습니다",
+        "sel_reassign": "담당자를 변경할 업무를 선택해주세요:",
+        "search_title": "🔍 업무 검색", "enter_search": "검색어를 입력해주세요:",
+        "search_empty": "🔍 검색 결과가 없습니다.",
+        "monthly_title": "📊 이번 달 업무 통계",
+        "overdue_auto": "⚠️ 업무 #{id} 마감일이 3일 이상 지났습니다. 확인해주세요!",
     },
     "en": {
         "menu_task": "📋 Add Task", "menu_status": "📊 Status",
@@ -172,6 +192,25 @@ _T = {
         "sec_cancel": "── Cancelled ({count}) ──",
         "lang_set": "✅ Language set to English",
         "sel_lang": "🌐 Select your language:",
+        "menu_edit": "✏️ Edit Task", "menu_reassign": "🔄 Reassign",
+        "menu_search": "🔍 Search",
+        "menu_rpt_full": "📈 Full Report", "menu_monthly": "📊 Monthly Stats",
+        "st_overdue": "🔴 Overdue",
+        "card_priority": "Priority",
+        "pri_urgent": "🔴 Urgent", "pri_normal": "🟡 Normal", "pri_low": "🟢 Low",
+        "sel_priority": "Select priority:",
+        "edit_title": "✏️ Edit Task", "edit_content": "📝 Edit Content", "edit_deadline": "📅 Edit Deadline",
+        "edit_ok": "✏️ Task #{id} updated!",
+        "enter_edit": "Enter new content:",
+        "sel_edit": "Select task to edit:",
+        "sel_edit_field": "What to edit:",
+        "reassign_title": "🔄 Reassign",
+        "reassign_ok": "🔄 Task #{id} reassigned to @{name}",
+        "sel_reassign": "Select task to reassign:",
+        "search_title": "🔍 Search", "enter_search": "Enter search keyword:",
+        "search_empty": "🔍 No results found.",
+        "monthly_title": "📊 Monthly Stats",
+        "overdue_auto": "⚠️ Task #{id} is 3+ days overdue. Please check!",
     },
     "ru": {
         "menu_task": "📋 Задача", "menu_status": "📊 Статус",
@@ -232,6 +271,25 @@ _T = {
         "sec_cancel": "── Отменено ({count}) ──",
         "lang_set": "✅ Язык установлен на русский",
         "sel_lang": "🌐 Выберите язык:",
+        "menu_edit": "✏️ Редактировать", "menu_reassign": "🔄 Переназначить",
+        "menu_search": "🔍 Поиск",
+        "menu_rpt_full": "📈 Полный отчёт", "menu_monthly": "📊 Месячная статистика",
+        "st_overdue": "🔴 Просрочено",
+        "card_priority": "Приоритет",
+        "pri_urgent": "🔴 Срочно", "pri_normal": "🟡 Обычный", "pri_low": "🟢 Низкий",
+        "sel_priority": "Выберите приоритет:",
+        "edit_title": "✏️ Редактировать", "edit_content": "📝 Содержание", "edit_deadline": "📅 Срок",
+        "edit_ok": "✏️ Задача #{id} обновлена!",
+        "enter_edit": "Введите новое содержание:",
+        "sel_edit": "Выберите задачу:",
+        "sel_edit_field": "Что изменить:",
+        "reassign_title": "🔄 Переназначить",
+        "reassign_ok": "🔄 Задача #{id} переназначена @{name}",
+        "sel_reassign": "Выберите задачу:",
+        "search_title": "🔍 Поиск", "enter_search": "Введите ключевое слово:",
+        "search_empty": "🔍 Ничего не найдено.",
+        "monthly_title": "📊 Месячная статистика",
+        "overdue_auto": "⚠️ Задача #{id} просрочена на 3+ дня!",
     },
     "uz": {
         "menu_task": "📋 Vazifa", "menu_status": "📊 Holat",
@@ -292,11 +350,31 @@ _T = {
         "sec_cancel": "── Bekor ({count}) ──",
         "lang_set": "✅ Til o'zbek tiliga o'rnatildi",
         "sel_lang": "🌐 Tilni tanlang:",
+        "menu_edit": "✏️ Tahrirlash", "menu_reassign": "🔄 Qayta tayinlash",
+        "menu_search": "🔍 Qidirish",
+        "menu_rpt_full": "📈 To'liq hisobot", "menu_monthly": "📊 Oylik statistika",
+        "st_overdue": "🔴 Kechikkan",
+        "card_priority": "Ustuvorlik",
+        "pri_urgent": "🔴 Shoshilinch", "pri_normal": "🟡 Oddiy", "pri_low": "🟢 Past",
+        "sel_priority": "Ustuvorlikni tanlang:",
+        "edit_title": "✏️ Tahrirlash", "edit_content": "📝 Mazmun", "edit_deadline": "📅 Muddat",
+        "edit_ok": "✏️ Vazifa #{id} yangilandi!",
+        "enter_edit": "Yangi mazmunni kiriting:",
+        "sel_edit": "Vazifani tanlang:",
+        "sel_edit_field": "Nimani o'zgartirish:",
+        "reassign_title": "🔄 Qayta tayinlash",
+        "reassign_ok": "🔄 Vazifa #{id} @{name}ga tayinlandi",
+        "sel_reassign": "Vazifani tanlang:",
+        "search_title": "🔍 Qidirish", "enter_search": "Kalit so'zni kiriting:",
+        "search_empty": "🔍 Natija topilmadi.",
+        "monthly_title": "📊 Oylik statistika",
+        "overdue_auto": "⚠️ Vazifa #{id} 3+ kun kechikkan!",
     },
 }
 
 # 내부 상태값 → 번역 키 매핑
-_STATUS_KEY = {"대기": "st_pending", "진행중": "st_progress", "완료": "st_done", "취소": "st_cancelled"}
+_STATUS_KEY = {"대기": "st_pending", "진행중": "st_progress", "완료": "st_done", "취소": "st_cancelled", "지연": "st_overdue"}
+_PRI_ORDER = {"urgent": 0, "normal": 1, "low": 2, "": 3}
 
 
 def _t(key: str, lang: str = "ko") -> str:
@@ -530,8 +608,15 @@ def _format_task_card(task: dict, users: dict, lang: str = "ko") -> str:
     if task.get("progress") and task["status"] not in ("완료", "취소"):
         progress_line = f"\n{_t('card_progress', lang)}: {_progress_bar(task['progress'])} {task['progress']}%"
 
+    pri = task.get("priority", "")
+    pri_line = ""
+    if pri:
+        pri_key = {"urgent": "pri_urgent", "normal": "pri_normal", "low": "pri_low"}.get(pri)
+        if pri_key:
+            pri_line = f"\n{_t('card_priority', lang)}: {_t(pri_key, lang)}"
+
     return (
-        f"📋 #{task['id']:03d}\n"
+        f"📋 #{task['id']:03d}{pri_line}\n"
         f"{_t('card_assigned', lang)}: @{task['assignee']}{assignee_role}\n"
         f"{_t('card_task', lang)}: {task['content']}\n"
         f"{_t('card_due', lang)}: {task['deadline']}\n"
@@ -553,8 +638,12 @@ def _main_menu_kb(user_id: str = None, lang: str = "ko"):
              InlineKeyboardButton(_t("menu_status", L), callback_data="list")],
             [InlineKeyboardButton(_t("menu_done", L), callback_data="done"),
              InlineKeyboardButton(_t("menu_cancel", L), callback_data="cancel_menu")],
+            [InlineKeyboardButton(_t("menu_edit", L), callback_data="edit"),
+             InlineKeyboardButton(_t("menu_reassign", L), callback_data="reassign")],
             [InlineKeyboardButton(_t("menu_my", L), callback_data="mylist"),
-             InlineKeyboardButton(_t("menu_report", L), callback_data="report")],
+             InlineKeyboardButton(_t("menu_search", L), callback_data="search")],
+            [InlineKeyboardButton(_t("menu_rpt_full", L), callback_data="report"),
+             InlineKeyboardButton(_t("menu_monthly", L), callback_data="monthly")],
             [InlineKeyboardButton(_t("menu_members", L), callback_data="members"),
              InlineKeyboardButton(_t("menu_lang", L), callback_data="lang")],
             [InlineKeyboardButton(_t("menu_help", L), callback_data="help")],
@@ -1040,6 +1129,29 @@ async def cb_task_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     deadline = (datetime.now(KST).date() + timedelta(days=int(option))).strftime("%Y.%m.%d")
+    _set_state(context, user_id, task_deadline=deadline, state=None)
+    await _show_priority_buttons(query, context, user_id, lang)
+
+
+async def _show_priority_buttons(query, context, user_id, lang):
+    """우선순위 선택 버튼 표시"""
+    buttons = [
+        [InlineKeyboardButton(_t("pri_urgent", lang), callback_data="tp:urgent"),
+         InlineKeyboardButton(_t("pri_normal", lang), callback_data="tp:normal"),
+         InlineKeyboardButton(_t("pri_low", lang), callback_data="tp:low")],
+        [InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")],
+    ]
+    await _dm(query, context, _t("sel_priority", lang), InlineKeyboardMarkup(buttons))
+
+
+async def cb_task_priority(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """우선순위 선택 → 업무 생성"""
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    priority = query.data.split(":")[1]
+    _set_state(context, user_id, task_priority=priority)
+    deadline = context.user_data.get("task_deadline", "")
     await _create_task_and_reply(query.from_user.id, context, deadline, query=query)
 
 
@@ -1051,7 +1163,15 @@ async def _process_task_deadline_custom(update: Update, context: ContextTypes.DE
         _set_state(context, user_id, state="awaiting_task_deadline")
         await _dm_prompt_msg(update.message, _t("bad_date", lang) + "\n" + _t("enter_deadline", lang), lang)
         return
-    await _create_task_and_reply(update.effective_user.id, context, deadline, message=update.message)
+    _set_state(context, user_id, task_deadline=deadline, state=None)
+    # 우선순위 버튼 표시
+    buttons = [
+        [InlineKeyboardButton(_t("pri_urgent", lang), callback_data="tp:urgent"),
+         InlineKeyboardButton(_t("pri_normal", lang), callback_data="tp:normal"),
+         InlineKeyboardButton(_t("pri_low", lang), callback_data="tp:low")],
+        [InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")],
+    ]
+    await update.message.reply_text(_t("sel_priority", lang), reply_markup=InlineKeyboardMarkup(buttons))
 
 
 async def _create_task_and_reply(user_id, context, deadline, *, query=None, message=None):
@@ -1066,10 +1186,11 @@ async def _create_task_and_reply(user_id, context, deadline, *, query=None, mess
     creator_name = data["users"].get(uid, {}).get("name", "Unknown")
     gcid = context.user_data.get("group_chat_id")
 
+    priority = context.user_data.get("task_priority", "normal")
     task = {
         "id": data["next_id"], "assignee": assignee,
         "content": content, "content_original": content_original if translated else None,
-        "deadline": deadline, "status": "대기", "progress": 0,
+        "deadline": deadline, "status": "대기", "progress": 0, "priority": priority,
         "creator": creator_name, "creator_id": uid,
         "created_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "updates": [],
     }
@@ -1116,7 +1237,9 @@ async def cb_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _dm(query, context, _t("no_tasks", lang), _back_refresh_kb(lang))
         return
 
-    active = [t for t in tasks if t["status"] not in ("완료", "취소")]
+    active = sorted(
+        [t for t in tasks if t["status"] not in ("완료", "취소")],
+        key=lambda t: _PRI_ORDER.get(t.get("priority", ""), 3))
     done = [t for t in tasks if t["status"] == "완료"]
     cancelled = [t for t in tasks if t["status"] == "취소"]
     lines = [_t("all_title", lang).format(count=len(tasks)) + "\n"]
@@ -1331,6 +1454,282 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
 
 
 # ──────────────────────────────────────────
+# ✏️ 업무 수정 (CEO 전용)
+# ──────────────────────────────────────────
+
+async def cb_edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    if not _is_admin(user_id):
+        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
+        return
+    data = _load_data()
+    active = [t for t in data["tasks"] if t["status"] not in ("완료", "취소")]
+    if not active:
+        await _dm(query, context, _t("no_tasks", lang), _back_kb(lang))
+        return
+    buttons = [[InlineKeyboardButton(f"#{t['id']:03d} {t['content'][:25]}", callback_data=f"ed:{t['id']}")] for t in active]
+    buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
+    await _dm(query, context, f"{_t('edit_title', lang)}\n\n{_t('sel_edit', lang)}", InlineKeyboardMarkup(buttons))
+
+
+async def cb_edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    task_id = int(query.data.split(":")[1])
+    _set_state(context, user_id, edit_task_id=task_id)
+    buttons = [
+        [InlineKeyboardButton(_t("edit_content", lang), callback_data=f"edf:content"),
+         InlineKeyboardButton(_t("edit_deadline", lang), callback_data=f"edf:deadline")],
+        [InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")],
+    ]
+    await _dm(query, context, f"{_t('edit_title', lang)} #{task_id:03d}\n\n{_t('sel_edit_field', lang)}", InlineKeyboardMarkup(buttons))
+
+
+async def cb_edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    field = query.data.split(":")[1]
+    if field == "content":
+        _set_state(context, user_id, state="awaiting_edit_content")
+        await _dm_prompt(query, context, _t("enter_edit", lang), lang)
+    elif field == "deadline":
+        _set_state(context, user_id, state="awaiting_edit_deadline")
+        await _dm_prompt(query, context, _t("enter_deadline", lang), lang)
+
+
+async def _process_edit_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    lang = _get_user_lang(user_id)
+    task_id = context.user_data.get("edit_task_id")
+    if not task_id:
+        _clear_state(context, user_id)
+        return
+    new_content = update.message.text.strip()
+    translated = None
+    if _needs_translation(new_content):
+        translated = await _translate_to_korean(new_content)
+    data = _load_data()
+    task = next((t for t in data["tasks"] if t["id"] == task_id), None)
+    if not task:
+        await update.message.reply_text(_t("not_found", lang), reply_markup=_back_kb(lang))
+        _clear_state(context, user_id)
+        return
+    task["content"] = translated or new_content
+    _save_data(data)
+    gcid = context.user_data.get("group_chat_id")
+    _clear_state(context, user_id)
+    reply = f"{_t('edit_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}"
+    await update.message.reply_text(reply, reply_markup=_main_menu_kb(user_id, lang))
+    await _post_group(context, gcid, f"{_t('edit_ok', 'ko').format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], 'ko')}")
+    if not gcid:
+        for cid in _get_group_chat_ids():
+            await _post_group(context, int(cid), f"{_t('edit_ok', 'ko').format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], 'ko')}")
+
+
+async def _process_edit_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    lang = _get_user_lang(user_id)
+    task_id = context.user_data.get("edit_task_id")
+    if not task_id:
+        _clear_state(context, user_id)
+        return
+    deadline = update.message.text.strip()
+    if not re.match(r'^\d{4}\.\d{2}\.\d{2}$', deadline):
+        _set_state(context, user_id, state="awaiting_edit_deadline")
+        await _dm_prompt_msg(update.message, _t("bad_date", lang), lang)
+        return
+    data = _load_data()
+    task = next((t for t in data["tasks"] if t["id"] == task_id), None)
+    if not task:
+        await update.message.reply_text(_t("not_found", lang), reply_markup=_back_kb(lang))
+        _clear_state(context, user_id)
+        return
+    task["deadline"] = deadline
+    _save_data(data)
+    gcid = context.user_data.get("group_chat_id")
+    _clear_state(context, user_id)
+    reply = f"{_t('edit_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}"
+    await update.message.reply_text(reply, reply_markup=_main_menu_kb(user_id, lang))
+    await _post_group(context, gcid, f"{_t('edit_ok', 'ko').format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], 'ko')}")
+    if not gcid:
+        for cid in _get_group_chat_ids():
+            await _post_group(context, int(cid), f"{_t('edit_ok', 'ko').format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], 'ko')}")
+
+
+# ──────────────────────────────────────────
+# 🔄 담당자 변경 (CEO 전용)
+# ──────────────────────────────────────────
+
+async def cb_reassign_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    if not _is_admin(user_id):
+        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
+        return
+    data = _load_data()
+    active = [t for t in data["tasks"] if t["status"] not in ("완료", "취소")]
+    if not active:
+        await _dm(query, context, _t("no_tasks", lang), _back_kb(lang))
+        return
+    buttons = [[InlineKeyboardButton(f"#{t['id']:03d} {t['content'][:20]} (@{t['assignee']})", callback_data=f"ra:{t['id']}")] for t in active]
+    buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
+    await _dm(query, context, f"{_t('reassign_title', lang)}\n\n{_t('sel_reassign', lang)}", InlineKeyboardMarkup(buttons))
+
+
+async def cb_reassign_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    task_id = int(query.data.split(":")[1])
+    _set_state(context, user_id, reassign_task_id=task_id)
+    data = _load_data()
+    buttons = []
+    row = []
+    for uid, uinfo in data["users"].items():
+        if uinfo.get("role"):
+            row.append(InlineKeyboardButton(uinfo["name"], callback_data=f"rm:{uid}"))
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+    if row:
+        buttons.append(row)
+    buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
+    await _dm(query, context, f"{_t('reassign_title', lang)} #{task_id:03d}\n\n{_t('sel_assignee', lang)}", InlineKeyboardMarkup(buttons))
+
+
+async def cb_reassign_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    new_uid = query.data.split(":")[1]
+    task_id = context.user_data.get("reassign_task_id")
+    if not task_id:
+        await _dm(query, context, _t("not_found", lang), _back_kb(lang))
+        return
+    data = _load_data()
+    task = next((t for t in data["tasks"] if t["id"] == task_id), None)
+    new_name = data["users"].get(new_uid, {}).get("name", "")
+    if not task or not new_name:
+        await _dm(query, context, _t("not_found", lang), _back_kb(lang))
+        _clear_state(context, user_id)
+        return
+    task["assignee"] = new_name
+    _save_data(data)
+    gcid = context.user_data.get("group_chat_id")
+    _clear_state(context, user_id)
+    msg = _t("reassign_ok", lang).format(id=f"{task_id:03d}", name=new_name)
+    await _dm(query, context, f"{msg}\n\n{_format_task_card(task, data['users'], lang)}", _main_menu_kb(user_id, lang))
+    # 그룹 공개
+    gmsg = _t("reassign_ok", "ko").format(id=f"{task_id:03d}", name=new_name)
+    await _post_group(context, gcid, gmsg)
+    if not gcid:
+        for cid in _get_group_chat_ids():
+            await _post_group(context, int(cid), gmsg)
+    # 새 담당자 DM
+    try:
+        new_lang = _get_user_lang(new_uid)
+        notice = f"📋 #{task_id:03d}\n{_t('task_assigned_notice', new_lang).format(assignee=new_name)}"
+        await context.bot.send_message(chat_id=int(new_uid), text=notice)
+    except Exception:
+        pass
+
+
+# ──────────────────────────────────────────
+# 🔍 업무 검색 (CEO 전용)
+# ──────────────────────────────────────────
+
+async def cb_search_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    if not _is_admin(user_id):
+        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
+        return
+    _set_state(context, user_id, state="awaiting_search")
+    await _dm_prompt(query, context, f"{_t('search_title', lang)}\n\n{_t('enter_search', lang)}", lang)
+
+
+async def _process_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    lang = _get_user_lang(user_id)
+    keyword = update.message.text.strip().lower()
+    data = _load_data()
+    results = [t for t in data["tasks"] if keyword in t["content"].lower() or keyword in t["assignee"].lower()]
+    _clear_state(context, user_id)
+    if not results:
+        await update.message.reply_text(_t("search_empty", lang), reply_markup=_main_menu_kb(user_id, lang))
+        return
+    lines = [f"{_t('search_title', lang)} — \"{keyword}\" ({len(results)})\n"]
+    for t in results:
+        lines += [_format_task_card(t, data["users"], lang), ""]
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "\n..."
+    await update.message.reply_text(text, reply_markup=_main_menu_kb(user_id, lang))
+
+
+# ──────────────────────────────────────────
+# 📊 월간 통계 (CEO 전용)
+# ──────────────────────────────────────────
+
+async def cb_monthly(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    if not _is_admin(user_id):
+        await _dm(query, context, _t("report_only", lang), _back_kb(lang))
+        return
+    data = _load_data()
+    now = datetime.now(KST)
+    month_start = now.replace(day=1).strftime("%Y-%m-%d")
+    monthly = [t for t in data["tasks"] if t.get("created_at", "") >= month_start]
+    if not monthly:
+        await _dm(query, context, _t("no_tasks", lang), _back_kb(lang))
+        return
+    total = len(monthly)
+    comp = len([t for t in monthly if t["status"] == "완료"])
+    prog = len([t for t in monthly if t["status"] == "진행중"])
+    pend = len([t for t in monthly if t["status"] == "대기"])
+    over = len([t for t in monthly if t["status"] == "지연"])
+    rate = round(comp / total * 100) if total else 0
+    lines = [
+        f"{_t('monthly_title', lang)}", f"Date: {now.strftime('%Y.%m')}\n",
+        f"Total: {total}",
+        f"  {_t('st_done', lang)}: {comp} ({rate}%)",
+        f"  {_t('st_progress', lang)}: {prog}",
+        f"  {_t('st_overdue', lang)}: {over}",
+        f"  {_t('st_pending', lang)}: {pend}", "",
+    ]
+    # 담당자별
+    stats = {}
+    for t in monthly:
+        n = t["assignee"]
+        if n not in stats:
+            stats[n] = {"done": 0, "overdue": 0, "total": 0}
+        stats[n]["total"] += 1
+        if t["status"] == "완료":
+            stats[n]["done"] += 1
+        elif t["status"] == "지연":
+            stats[n]["overdue"] += 1
+    for n, s in stats.items():
+        lines.append(f"  @{n} — {s['done']} done / {s['overdue']} overdue / {s['total']} total")
+    await _dm(query, context, "\n".join(lines), _back_kb(lang))
+
+
+# ──────────────────────────────────────────
 # 📈 보고서 (DM, CEO 전용)
 # ──────────────────────────────────────────
 
@@ -1414,6 +1813,12 @@ async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _process_task_deadline_custom(update, context)
     elif state == "awaiting_progress":
         await _process_progress_update(update, context)
+    elif state == "awaiting_edit_content":
+        await _process_edit_content(update, context)
+    elif state == "awaiting_edit_deadline":
+        await _process_edit_deadline(update, context)
+    elif state == "awaiting_search":
+        await _process_search(update, context)
 
 
 # ──────────────────────────────────────────
@@ -1437,24 +1842,46 @@ async def _daily_deadline_reminder(context: ContextTypes.DEFAULT_TYPE):
         return
     data = _load_data()
     today = datetime.now(KST).date()
-    overdue, due_today, due_tomorrow = [], [], []
+    overdue, due_today, due_tomorrow, auto_overdue = [], [], [], []
+    changed = False
     for t in data["tasks"]:
-        if t["status"] in ("완료", "취소"):
+        if t["status"] in ("완료", "취소", "지연"):
             continue
         try:
             dl = datetime.strptime(t["deadline"], "%Y.%m.%d").date()
         except ValueError:
             continue
         d = (dl - today).days
-        if d < 0:
+        if d <= -3:
+            # 3일 이상 지연 → 자동 지연 처리
+            t["status"] = "지연"
+            auto_overdue.append(t)
+            changed = True
+        elif d < 0:
             overdue.append(t)
         elif d == 0:
             due_today.append(t)
         elif d == 1:
             due_tomorrow.append(t)
-    if not overdue and not due_today and not due_tomorrow:
+    if changed:
+        _save_data(data)
+    if not overdue and not due_today and not due_tomorrow and not auto_overdue:
         return
     lines = ["⏰ Deadline Alert\n"]
+    if auto_overdue:
+        lines.append("🔴 Auto-Overdue (3+ days):")
+        for t in auto_overdue:
+            lines.append(f"  #{t['id']:03d} {t['content']} (@{t['assignee']}) — {t['deadline']}")
+        lines.append("")
+        # CEO DM 알림
+        if TELEGRAM_ADMIN_ID:
+            ceo_lines = ["🔴 지연 자동 처리됨:\n"]
+            for t in auto_overdue:
+                ceo_lines.append(f"  #{t['id']:03d} {t['content']} (@{t['assignee']})")
+            try:
+                await context.bot.send_message(chat_id=int(TELEGRAM_ADMIN_ID), text="\n".join(ceo_lines))
+            except Exception:
+                pass
     if overdue:
         lines.append("❌ Overdue!")
         for t in overdue:
@@ -1573,6 +2000,15 @@ async def start_telegram_bot():
     _bot_app.add_handler(CallbackQueryHandler(cb_task_start, pattern="^task$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_task_assignee, pattern=r"^ta:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_task_deadline, pattern=r"^td:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_task_priority, pattern=r"^tp:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_edit_start, pattern="^edit$"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_edit_select, pattern=r"^ed:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_edit_field, pattern=r"^edf:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_reassign_start, pattern="^reassign$"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_reassign_select, pattern=r"^ra:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_reassign_member, pattern=r"^rm:"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_search_start, pattern="^search$"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_monthly, pattern="^monthly$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_list, pattern="^list$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_done_start, pattern="^done$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_done, pattern=r"^do:"))
