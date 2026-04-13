@@ -484,30 +484,12 @@ _REPLY_HINT = {
     "uz": "(Bu xabarga javob yozing 💬)",
 }
 
-
-async def _prompt_text(query, context, prompt: str, lang: str):
-    """텍스트 입력 요청 — ForceReply로 그룹/DM 모두 작동"""
-    hint = _REPLY_HINT.get(lang, _REPLY_HINT["ko"])
-    # 기존 인라인 메시지의 버튼만 제거 (내용은 간략하게)
-    try:
-        await query.edit_message_text("⏳")
-    except Exception:
-        pass
-    # ForceReply로 새 메시지 1회만 전송
-    await context.bot.send_message(
-        chat_id=query.message.chat_id,
-        text=f"{prompt}\n{hint}\n\n/menu — {_t('menu_home', lang)}",
-        reply_markup=ForceReply(selective=True),
-    )
-
-
-async def _prompt_text_msg(message, prompt: str, lang: str):
-    """텍스트→텍스트 전환 시 ForceReply 프롬프트"""
-    hint = _REPLY_HINT.get(lang, _REPLY_HINT["ko"])
-    await message.reply_text(
-        f"{prompt}\n{hint}\n\n/menu — {_t('menu_home', lang)}",
-        reply_markup=ForceReply(selective=True),
-    )
+_DM_HINT = {
+    "ko": "개인 메시지를 먼저 시작해주세요 → @{bot} 클릭 후 /start",
+    "en": "Please start a DM first → Click @{bot} then /start",
+    "ru": "Сначала начните личный чат → @{bot}, затем /start",
+    "uz": "Avval shaxsiy xabar boshlang → @{bot} bosing, /start",
+}
 
 
 def _back_refresh_kb(lang: str = "ko"):
@@ -518,11 +500,96 @@ def _back_refresh_kb(lang: str = "ko"):
 
 
 # ──────────────────────────────────────────
+# DM 전송 헬퍼
+# ──────────────────────────────────────────
+
+def _is_group(chat) -> bool:
+    return chat.type in ("group", "supergroup")
+
+
+async def _dm(query, context, text: str, reply_markup=None) -> bool:
+    """콜백 응답을 DM으로 전송. 그룹이면 DM 전송 + 그룹 버튼 제거. DM이면 메시지 편집."""
+    uid = query.from_user.id
+    chat = query.message.chat
+
+    if _is_group(chat):
+        context.user_data["group_chat_id"] = chat.id
+        try:
+            await context.bot.send_message(chat_id=uid, text=text, reply_markup=reply_markup)
+        except Exception:
+            lang = _get_user_lang(str(uid))
+            bot_un = context.bot.username or "bot"
+            await query.answer(_DM_HINT.get(lang, _DM_HINT["ko"]).format(bot=bot_un), show_alert=True)
+            return False
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return True
+    else:
+        try:
+            await query.edit_message_text(text, reply_markup=reply_markup)
+        except Exception:
+            await context.bot.send_message(chat_id=uid, text=text, reply_markup=reply_markup)
+        return True
+
+
+async def _dm_prompt(query, context, prompt: str, lang: str) -> bool:
+    """텍스트 입력 요청을 DM ForceReply로 전송"""
+    uid = query.from_user.id
+    chat = query.message.chat
+    hint = _REPLY_HINT.get(lang, _REPLY_HINT["ko"])
+    full = f"{prompt}\n{hint}\n\n/menu — {_t('menu_home', lang)}"
+
+    if _is_group(chat):
+        context.user_data["group_chat_id"] = chat.id
+        try:
+            await context.bot.send_message(chat_id=uid, text=full, reply_markup=ForceReply(selective=True))
+        except Exception:
+            bot_un = context.bot.username or "bot"
+            await query.answer(_DM_HINT.get(lang, _DM_HINT["ko"]).format(bot=bot_un), show_alert=True)
+            return False
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return True
+    else:
+        try:
+            await query.edit_message_text("⏳")
+        except Exception:
+            pass
+        await context.bot.send_message(chat_id=uid, text=full, reply_markup=ForceReply(selective=True))
+        return True
+
+
+async def _dm_prompt_msg(message, prompt: str, lang: str):
+    """텍스트→텍스트 전환 시 DM ForceReply"""
+    hint = _REPLY_HINT.get(lang, _REPLY_HINT["ko"])
+    await message.reply_text(
+        f"{prompt}\n{hint}\n\n/menu — {_t('menu_home', lang)}",
+        reply_markup=ForceReply(selective=True))
+
+
+async def _post_group(context, group_chat_id, text: str):
+    """그룹에 공개 메시지 전송"""
+    if not group_chat_id:
+        return
+    try:
+        await context.bot.send_message(chat_id=int(group_chat_id), text=text)
+    except Exception as e:
+        print(f"[telegram-bot] 그룹 전송 실패: {e}", flush=True)
+
+
+# ──────────────────────────────────────────
 # /start, /menu — 메인 메뉴
 # ──────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    gcid = context.user_data.get("group_chat_id")
     context.user_data.clear()
+    if gcid:
+        context.user_data["group_chat_id"] = gcid
     user_id = str(update.effective_user.id)
     lang = _get_user_lang(user_id)
     data = _load_data()
@@ -546,7 +613,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    gcid = context.user_data.get("group_chat_id")
     context.user_data.clear()
+    if gcid:
+        context.user_data["group_chat_id"] = gcid
+
     user_id = str(query.from_user.id)
     lang = _get_user_lang(user_id)
     data = _load_data()
@@ -556,13 +627,13 @@ async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     role = _get_user_role(user_id, data)
     if not role:
-        await query.edit_message_text(_t("no_role", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_role", lang), _back_kb(lang))
         return
 
     name = data["users"][user_id]["name"]
-    await query.edit_message_text(
+    await _dm(query, context,
         f"{_t('welcome', lang)}\n{name} ({role})",
-        reply_markup=_main_menu_kb(user_id, lang))
+        _main_menu_kb(user_id, lang))
 
 
 # ──────────────────────────────────────────
@@ -580,8 +651,7 @@ async def cb_lang_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🇺🇿 O'zbek", callback_data="setlang:uz")],
         [InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")],
     ]
-    await query.edit_message_text(
-        _t("sel_lang", lang), reply_markup=InlineKeyboardMarkup(buttons))
+    await _dm(query, context, _t("sel_lang", lang), InlineKeyboardMarkup(buttons))
 
 
 async def cb_set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -590,8 +660,8 @@ async def cb_set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     new_lang = query.data.split(":")[1]
     _set_user_lang(user_id, new_lang)
-    await query.edit_message_text(
-        _t("lang_set", new_lang), reply_markup=_main_menu_kb(user_id, new_lang))
+    await _dm(query, context,
+        _t("lang_set", new_lang), _main_menu_kb(user_id, new_lang))
 
 
 # ──────────────────────────────────────────
@@ -605,7 +675,7 @@ async def cb_members_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = _get_user_lang(user_id)
 
     if not _is_admin(user_id):
-        await query.edit_message_text(_t("members_only", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("members_only", lang), _back_kb(lang))
         return
 
     data = _load_data()
@@ -634,7 +704,7 @@ async def cb_members_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(_t("mem_hint", lang))
 
     buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
-    await query.edit_message_text("\n".join(lines), reply_markup=InlineKeyboardMarkup(buttons))
+    await _dm(query, context, "\n".join(lines), InlineKeyboardMarkup(buttons))
 
 
 async def cb_member_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -644,14 +714,14 @@ async def cb_member_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = _get_user_lang(user_id)
 
     if not _is_admin(user_id):
-        await query.edit_message_text(_t("no_perm", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
         return
 
     target_uid = query.data.split(":")[1]
     data = _load_data()
     target_info = data.get("known_users", {}).get(target_uid)
     if not target_info:
-        await query.edit_message_text(_t("mem_404", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("mem_404", lang), _back_kb(lang))
         return
 
     name = target_info["name"]
@@ -664,9 +734,9 @@ async def cb_member_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(_t("mem_back", lang), callback_data="members"),
          InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")],
     ]
-    await query.edit_message_text(
+    await _dm(query, context,
         f"{_t('mem_title', lang)}\n\n{_t('mem_sel_role', lang).format(name=name)}",
-        reply_markup=InlineKeyboardMarkup(buttons))
+        InlineKeyboardMarkup(buttons))
 
 
 async def cb_assign_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -676,7 +746,7 @@ async def cb_assign_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = _get_user_lang(admin_id)
 
     if not _is_admin(admin_id):
-        await query.edit_message_text(_t("no_perm", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
         return
 
     parts = query.data.split(":")
@@ -684,15 +754,15 @@ async def cb_assign_role(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = _load_data()
     target_info = data.get("known_users", {}).get(target_uid)
     if not target_info:
-        await query.edit_message_text(_t("mem_404", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("mem_404", lang), _back_kb(lang))
         return
 
     name = target_info["name"]
     data["users"][target_uid] = {"name": name, "role": role, "username": target_info.get("username", "")}
     _save_data(data)
-    await query.edit_message_text(
+    await _dm(query, context,
         _t("mem_ok", lang).format(name=name, role=role),
-        reply_markup=_main_menu_kb(admin_id, lang))
+        _main_menu_kb(admin_id, lang))
 
 
 async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -711,7 +781,7 @@ async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ──────────────────────────────────────────
-# 📋 업무 등록 플로우
+# 📋 업무 등록 플로우 (DM에서 진행, 완료 시 그룹 공개)
 # ──────────────────────────────────────────
 
 async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -721,7 +791,7 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = _get_user_lang(user_id)
     data = _load_data()
     if not _get_user_role(user_id, data):
-        await query.edit_message_text(_t("no_role", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_role", lang), _back_kb(lang))
         return
 
     buttons = []
@@ -735,9 +805,9 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons.append(row)
     buttons.append([InlineKeyboardButton(_t("custom", lang), callback_data="ta:custom")])
     buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
-    await query.edit_message_text(
+    await _dm(query, context,
         f"{_t('task_title', lang)}\n\n{_t('sel_assignee', lang)}",
-        reply_markup=InlineKeyboardMarkup(buttons))
+        InlineKeyboardMarkup(buttons))
 
 
 async def cb_task_assignee(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -749,7 +819,7 @@ async def cb_task_assignee(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if assignee_key == "custom":
         context.user_data["state"] = "awaiting_task_assignee"
-        await _prompt_text(query, context,
+        await _dm_prompt(query, context,
             f"{_t('task_title', lang)}\n\n{_t('enter_assignee', lang)}", lang)
         return
 
@@ -757,7 +827,7 @@ async def cb_task_assignee(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["task_assignee"] = data["users"].get(assignee_key, {}).get("name", assignee_key)
     context.user_data["state"] = "awaiting_task_content"
     a = context.user_data["task_assignee"]
-    await _prompt_text(query, context,
+    await _dm_prompt(query, context,
         f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {a}\n\n{_t('enter_content', lang)}", lang)
 
 
@@ -766,7 +836,7 @@ async def _process_task_assignee_custom(update: Update, context: ContextTypes.DE
     name = update.message.text.strip()
     context.user_data["task_assignee"] = name
     context.user_data["state"] = "awaiting_task_content"
-    await _prompt_text_msg(update.message,
+    await _dm_prompt_msg(update.message,
         f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {name}\n\n{_t('enter_content', lang)}", lang)
 
 
@@ -809,7 +879,7 @@ async def cb_task_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if option == "custom":
         context.user_data["state"] = "awaiting_task_deadline"
-        await _prompt_text(query, context, _t("enter_deadline", lang), lang)
+        await _dm_prompt(query, context, _t("enter_deadline", lang), lang)
         return
 
     deadline = (datetime.now(KST).date() + timedelta(days=int(option))).strftime("%Y.%m.%d")
@@ -821,13 +891,14 @@ async def _process_task_deadline_custom(update: Update, context: ContextTypes.DE
     deadline = update.message.text.strip()
     if not re.match(r'^\d{4}\.\d{2}\.\d{2}$', deadline):
         context.user_data["state"] = "awaiting_task_deadline"
-        await _prompt_text_msg(update.message, _t("bad_date", lang) + "\n" + _t("enter_deadline", lang), lang)
+        await _dm_prompt_msg(update.message, _t("bad_date", lang) + "\n" + _t("enter_deadline", lang), lang)
         return
     context.user_data["state"] = None
     await _create_task_and_reply(update.effective_user.id, context, deadline, message=update.message)
 
 
 async def _create_task_and_reply(user_id, context, deadline, *, query=None, message=None):
+    """업무 생성 — DM 확인 + 그룹 공개"""
     uid = str(user_id)
     lang = _get_user_lang(uid)
     data = _load_data()
@@ -836,6 +907,7 @@ async def _create_task_and_reply(user_id, context, deadline, *, query=None, mess
     translated = context.user_data.get("task_translated")
     content = translated or content_original
     creator_name = data["users"].get(uid, {}).get("name", "Unknown")
+    gcid = context.user_data.get("group_chat_id")
 
     task = {
         "id": data["next_id"], "assignee": assignee,
@@ -847,20 +919,28 @@ async def _create_task_and_reply(user_id, context, deadline, *, query=None, mess
     data["tasks"].append(task)
     data["next_id"] += 1
     _save_data(data)
-    context.user_data.clear()
 
+    # DM 확인
     reply = f"{_t('task_ok', lang)}\n\n{_format_task_card(task, data['users'], lang)}"
     if translated:
         reply += f"\n\n[{_t('original', lang)}] {content_original}\n[{_t('translated', lang)}] {translated}"
     kb = _main_menu_kb(uid, lang)
     if query:
-        await query.edit_message_text(reply, reply_markup=kb)
+        await _dm(query, context, reply, kb)
     elif message:
         await message.reply_text(reply, reply_markup=kb)
 
+    # 그룹에 업무카드 공개
+    group_card = f"📋 New Task\n\n{_format_task_card(task, data['users'], 'ko')}"
+    await _post_group(context, gcid, group_card)
+
+    context.user_data.clear()
+    if gcid:
+        context.user_data["group_chat_id"] = gcid
+
 
 # ──────────────────────────────────────────
-# 📊 전체 현황
+# 📊 전체 현황 (DM)
 # ──────────────────────────────────────────
 
 async def cb_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -871,7 +951,7 @@ async def cb_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tasks = data["tasks"]
 
     if not tasks:
-        await query.edit_message_text(_t("no_tasks", lang), reply_markup=_back_refresh_kb(lang))
+        await _dm(query, context, _t("no_tasks", lang), _back_refresh_kb(lang))
         return
 
     active = [t for t in tasks if t["status"] not in ("완료", "취소")]
@@ -895,11 +975,11 @@ async def cb_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "\n".join(lines)
     if len(text) > 4000:
         text = text[:4000] + "\n..."
-    await query.edit_message_text(text, reply_markup=_back_refresh_kb(lang))
+    await _dm(query, context, text, _back_refresh_kb(lang))
 
 
 # ──────────────────────────────────────────
-# ✅ 완료 처리
+# ✅ 완료 처리 (DM 선택, 그룹 공개)
 # ──────────────────────────────────────────
 
 async def cb_done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -910,17 +990,17 @@ async def cb_done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = _load_data()
     role = _get_user_role(user_id, data)
     if not role:
-        await query.edit_message_text(_t("no_role", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_role", lang), _back_kb(lang))
         return
     uname = data["users"].get(user_id, {}).get("name", "")
     active = [t for t in data["tasks"] if t["status"] not in ("완료", "취소") and (role == "CEO" or t["assignee"] == uname)]
     if not active:
-        await query.edit_message_text(_t("no_done", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_done", lang), _back_kb(lang))
         return
     buttons = [[InlineKeyboardButton(f"#{t['id']:03d} {t['content'][:25]}", callback_data=f"do:{t['id']}")] for t in active]
     buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
-    await query.edit_message_text(
-        f"{_t('menu_done', lang)}\n\n{_t('sel_done', lang)}", reply_markup=InlineKeyboardMarkup(buttons))
+    await _dm(query, context,
+        f"{_t('menu_done', lang)}\n\n{_t('sel_done', lang)}", InlineKeyboardMarkup(buttons))
 
 
 async def cb_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -931,21 +1011,29 @@ async def cb_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task_id = int(query.data.split(":")[1])
     data = _load_data()
     uname = data["users"].get(user_id, {}).get("name", "")
+    gcid = context.user_data.get("group_chat_id")
+
     task = next((t for t in data["tasks"] if t["id"] == task_id), None)
     if not task:
-        await query.edit_message_text(_t("not_found", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("not_found", lang), _back_kb(lang))
         return
     task["status"] = "완료"
     task["progress"] = 100
     task["updates"].append({"date": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "content": "완료", "by": uname})
     _save_data(data)
-    await query.edit_message_text(
+
+    # DM 확인
+    await _dm(query, context,
         f"{_t('done_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}",
-        reply_markup=_main_menu_kb(user_id, lang))
+        _main_menu_kb(user_id, lang))
+
+    # 그룹 공개
+    await _post_group(context, gcid,
+        f"🟢 Task #{task_id:03d} Done!\n\n{_format_task_card(task, data['users'], 'ko')}")
 
 
 # ──────────────────────────────────────────
-# ❌ 업무 취소
+# ❌ 업무 취소 (DM)
 # ──────────────────────────────────────────
 
 async def cb_cancel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -956,17 +1044,17 @@ async def cb_cancel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = _load_data()
     role = _get_user_role(user_id, data)
     if not role:
-        await query.edit_message_text(_t("no_role", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_role", lang), _back_kb(lang))
         return
     uname = data["users"].get(user_id, {}).get("name", "")
     active = [t for t in data["tasks"] if t["status"] not in ("완료", "취소") and (role == "CEO" or t["assignee"] == uname)]
     if not active:
-        await query.edit_message_text(_t("no_cancel", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_cancel", lang), _back_kb(lang))
         return
     buttons = [[InlineKeyboardButton(f"#{t['id']:03d} {t['content'][:25]}", callback_data=f"ca:{t['id']}")] for t in active]
     buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
-    await query.edit_message_text(
-        f"{_t('menu_cancel', lang)}\n\n{_t('sel_cancel', lang)}", reply_markup=InlineKeyboardMarkup(buttons))
+    await _dm(query, context,
+        f"{_t('menu_cancel', lang)}\n\n{_t('sel_cancel', lang)}", InlineKeyboardMarkup(buttons))
 
 
 async def cb_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -979,18 +1067,18 @@ async def cb_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uname = data["users"].get(user_id, {}).get("name", "")
     task = next((t for t in data["tasks"] if t["id"] == task_id), None)
     if not task:
-        await query.edit_message_text(_t("not_found", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("not_found", lang), _back_kb(lang))
         return
     task["status"] = "취소"
     task["updates"].append({"date": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "content": "취소", "by": uname})
     _save_data(data)
-    await query.edit_message_text(
+    await _dm(query, context,
         f"{_t('cancel_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}",
-        reply_markup=_main_menu_kb(user_id, lang))
+        _main_menu_kb(user_id, lang))
 
 
 # ──────────────────────────────────────────
-# 👤 내 업무 + 진행률
+# 👤 내 업무 + 진행률 (DM)
 # ──────────────────────────────────────────
 
 async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1000,12 +1088,12 @@ async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = _get_user_lang(user_id)
     data = _load_data()
     if not _get_user_role(user_id, data):
-        await query.edit_message_text(_t("no_role", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_role", lang), _back_kb(lang))
         return
     uname = data["users"][user_id]["name"]
     my = [t for t in data["tasks"] if t["assignee"] == uname]
     if not my:
-        await query.edit_message_text(_t("no_my", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_my", lang), _back_kb(lang))
         return
     lines = [_t("my_title", lang).format(name=uname, count=len(my)) + "\n"]
     buttons = []
@@ -1018,7 +1106,7 @@ async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "\n".join(lines)
     if len(text) > 4000:
         text = text[:4000] + "\n..."
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    await _dm(query, context, text, InlineKeyboardMarkup(buttons))
 
 
 async def cb_update_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1028,7 +1116,7 @@ async def cb_update_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     task_id = int(query.data.split(":")[1])
     context.user_data["state"] = "awaiting_progress"
     context.user_data["update_task_id"] = task_id
-    await _prompt_text(query, context,
+    await _dm_prompt(query, context,
         f"{_t('upd_btn', lang)} #{task_id:03d}\n\n{_t('enter_progress', lang)}", lang)
 
 
@@ -1064,7 +1152,10 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
         "content": translated or text,
         "content_original": text if translated else None, "by": uname})
     _save_data(data)
+    gcid = context.user_data.get("group_chat_id")
     context.user_data.clear()
+    if gcid:
+        context.user_data["group_chat_id"] = gcid
 
     reply = f"{_t('upd_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}"
     if translated and text != translated:
@@ -1073,7 +1164,7 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
 
 
 # ──────────────────────────────────────────
-# 📈 보고서 (CEO 전용)
+# 📈 보고서 (DM, CEO 전용)
 # ──────────────────────────────────────────
 
 async def cb_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1082,12 +1173,12 @@ async def cb_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     lang = _get_user_lang(user_id)
     if not _is_admin(user_id):
-        await query.edit_message_text(_t("report_only", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("report_only", lang), _back_kb(lang))
         return
     data = _load_data()
     tasks = data["tasks"]
     if not tasks:
-        await query.edit_message_text(_t("no_tasks", lang), reply_markup=_back_kb(lang))
+        await _dm(query, context, _t("no_tasks", lang), _back_kb(lang))
         return
 
     total = len(tasks)
@@ -1133,7 +1224,7 @@ async def cb_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             label = "TODAY!" if d <= 0 else f"{d}d left"
             lines.append(f"  #{t['id']:03d} {t['content']} ({label})")
 
-    await query.edit_message_text("\n".join(lines), reply_markup=_back_kb(lang))
+    await _dm(query, context, "\n".join(lines), _back_kb(lang))
 
 
 # ──────────────────────────────────────────
@@ -1166,7 +1257,7 @@ async def _track_group_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ──────────────────────────────────────────
-# 스케줄 Job — 마감일 알림 (매일 9시 KST)
+# 스케줄 Job — 마감일 알림 (매일 9시 KST, 그룹 공개)
 # ──────────────────────────────────────────
 
 async def _daily_deadline_reminder(context: ContextTypes.DEFAULT_TYPE):
@@ -1216,7 +1307,7 @@ async def _daily_deadline_reminder(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ──────────────────────────────────────────
-# 스케줄 Job — 주간 보고서 (매주 월 9시 KST)
+# 스케줄 Job — 주간 보고서 (매주 월 9시 KST, 그룹 공개)
 # ──────────────────────────────────────────
 
 async def _generate_weekly_summary(tasks: list) -> str:
