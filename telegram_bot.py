@@ -59,6 +59,9 @@ _T = {
         # 메시지
         "welcome": "👋 SOL LABS 업무관리 봇입니다!",
         "task_assigned_notice": "@{assignee} 업무가 배정되었습니다! 👤 내 업무에서 진행상황을 업데이트해주세요 📝",
+        "menu_help": "❓ 사용법",
+        "help_ceo": "📖 SOL LABS AI 봇 사용법 (CEO)\n\n1️⃣ 업무 등록\n📋 업무 등록 버튼 → 담당자 선택 → 업무 내용 입력 → 마감일 선택\n→ 그룹방에 자동 공개됩니다\n\n2️⃣ 전체 현황\n📊 전체 현황 버튼 → 전체 업무 목록 확인\n\n3️⃣ 멤버 관리\n👥 멤버 관리 버튼 → 멤버 선택 → 역할 부여\n\n4️⃣ 보고서\n📈 보고서 버튼 → AI가 전체 업무 요약 보고서 생성\n\n5️⃣ 언어 설정\n🌐 언어 버튼 → 원하는 언어 선택",
+        "help_member": "📖 SOL LABS AI 봇 사용법\n\n1️⃣ 내 업무 확인\n👤 내 업무 버튼 → 배정된 업무 목록 확인\n\n2️⃣ 진행률 업데이트\n👤 내 업무 → 📝 진행률 업데이트 → 숫자% 입력\n예시: 50% 또는 \"API 연동 완료\"\n\n3️⃣ 업무 완료\n✅ 완료 처리 버튼 → 완료할 업무 선택\n\n4️⃣ 언어 설정\n🌐 언어 버튼 → 원하는 언어 선택",
         "no_role": "아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.",
         "no_perm": "❌ 권한이 없습니다.",
         "members_only": "❌ 멤버 관리는 CEO만 가능합니다.",
@@ -121,6 +124,9 @@ _T = {
         "st_pending": "⚪ Pending", "st_progress": "🟡 In Progress",
         "st_done": "✅ Done", "st_cancelled": "🔴 Cancelled",
         "task_assigned_notice": "@{assignee} You have been assigned a task! Please update your progress in 👤 My Tasks 📝",
+        "menu_help": "❓ Help",
+        "help_ceo": "📖 SOL LABS AI Bot Guide (CEO)\n\n1️⃣ Add Task\n📋 Add Task → Select assignee → Enter description → Select deadline\n→ Automatically posted in the group\n\n2️⃣ Status\n📊 Status → View all tasks\n\n3️⃣ Members\n👥 Members → Select member → Assign role\n\n4️⃣ Report\n📈 Report → AI generates a summary report\n\n5️⃣ Language\n🌐 Language → Select your language",
+        "help_member": "📖 SOL LABS AI Bot Guide\n\n1️⃣ My Tasks\n👤 My Tasks → View your assigned tasks\n\n2️⃣ Update Progress\n👤 My Tasks → 📝 Update Progress → Enter percentage\nExample: 50% or \"API integration done\"\n\n3️⃣ Complete Task\n✅ Done → Select task to complete\n\n4️⃣ Language\n🌐 Language → Select your language",
         "welcome": "👋 SOL LABS Task Manager Bot!",
         "no_role": "You don't have a role yet.\nPlease ask the CEO to assign one.",
         "no_perm": "❌ No permission.",
@@ -178,6 +184,9 @@ _T = {
         "st_pending": "⚪ Ожидание", "st_progress": "🟡 В работе",
         "st_done": "✅ Готово", "st_cancelled": "🔴 Отменено",
         "task_assigned_notice": "@{assignee} Вам назначена задача! Обновляйте прогресс в разделе 👤 Мои задачи 📝",
+        "menu_help": "❓ Справка",
+        "help_ceo": "📖 SOL LABS AI — Руководство (CEO)\n\n1️⃣ Новая задача\n📋 Задача → Выберите исполнителя → Описание → Срок\n→ Автоматически публикуется в группе\n\n2️⃣ Статус\n📊 Статус → Все задачи\n\n3️⃣ Участники\n👥 Участники → Выбрать → Назначить роль\n\n4️⃣ Отчёт\n📈 Отчёт → AI создаёт сводку\n\n5️⃣ Язык\n🌐 Язык → Выберите язык",
+        "help_member": "📖 SOL LABS AI — Руководство\n\n1️⃣ Мои задачи\n👤 Мои задачи → Список назначенных задач\n\n2️⃣ Обновить прогресс\n👤 Мои задачи → 📝 Обновить → Введите процент\nПример: 50% или \"API интеграция готова\"\n\n3️⃣ Завершить задачу\n✅ Готово → Выберите задачу\n\n4️⃣ Язык\n🌐 Язык → Выберите язык",
         "welcome": "👋 SOL LABS — бот управления задачами!",
         "no_role": "У вас ещё нет роли.\nПопросите CEO назначить вам роль.",
         "no_perm": "❌ Нет доступа.",
@@ -235,6 +244,9 @@ _T = {
         "st_pending": "⚪ Kutilmoqda", "st_progress": "🟡 Jarayonda",
         "st_done": "✅ Bajarildi", "st_cancelled": "🔴 Bekor",
         "task_assigned_notice": "@{assignee} Sizga vazifa tayinlandi! 👤 Mening vazifalarim bo'limida jarayonni yangilang 📝",
+        "menu_help": "❓ Yordam",
+        "help_ceo": "📖 SOL LABS AI Bot Qo'llanma (CEO)\n\n1️⃣ Vazifa yaratish\n📋 Vazifa → Mas'ulni tanlang → Tavsif kiriting → Muddat tanlang\n→ Guruhda avtomatik e'lon qilinadi\n\n2️⃣ Holat\n📊 Holat → Barcha vazifalar\n\n3️⃣ A'zolar\n👥 A'zolar → Tanlang → Rol bering\n\n4️⃣ Hisobot\n📈 Hisobot → AI xulosa yaratadi\n\n5️⃣ Til\n🌐 Til → Tilni tanlang",
+        "help_member": "📖 SOL LABS AI Bot Qo'llanma\n\n1️⃣ Mening vazifalarim\n👤 Mening → Tayinlangan vazifalar\n\n2️⃣ Jarayonni yangilash\n👤 Mening → 📝 Yangilash → Foizni kiriting\nMisol: 50% yoki \"API tayyor\"\n\n3️⃣ Vazifani yakunlash\n✅ Bajarildi → Vazifani tanlang\n\n4️⃣ Til\n🌐 Til → Tilni tanlang",
         "welcome": "👋 SOL LABS vazifa boshqaruv boti!",
         "no_role": "Sizga rol tayinlanmagan.\nCEOdan rol so'rang.",
         "no_perm": "❌ Ruxsat yo'q.",
@@ -535,26 +547,27 @@ def _format_task_card(task: dict, users: dict, lang: str = "ko") -> str:
 def _main_menu_kb(user_id: str = None, lang: str = "ko"):
     is_admin = _is_admin(user_id) if user_id else False
     L = lang
-    buttons = [
-        [InlineKeyboardButton(_t("menu_task", L), callback_data="task"),
-         InlineKeyboardButton(_t("menu_status", L), callback_data="list")],
-        [InlineKeyboardButton(_t("menu_done", L), callback_data="done"),
-         InlineKeyboardButton(_t("menu_cancel", L), callback_data="cancel_menu")],
-    ]
     if is_admin:
-        buttons.append([
-            InlineKeyboardButton(_t("menu_my", L), callback_data="mylist"),
-            InlineKeyboardButton(_t("menu_report", L), callback_data="report"),
-        ])
-        buttons.append([
-            InlineKeyboardButton(_t("menu_members", L), callback_data="members"),
-            InlineKeyboardButton(_t("menu_lang", L), callback_data="lang"),
-        ])
+        buttons = [
+            [InlineKeyboardButton(_t("menu_task", L), callback_data="task"),
+             InlineKeyboardButton(_t("menu_status", L), callback_data="list")],
+            [InlineKeyboardButton(_t("menu_done", L), callback_data="done"),
+             InlineKeyboardButton(_t("menu_cancel", L), callback_data="cancel_menu")],
+            [InlineKeyboardButton(_t("menu_my", L), callback_data="mylist"),
+             InlineKeyboardButton(_t("menu_report", L), callback_data="report")],
+            [InlineKeyboardButton(_t("menu_members", L), callback_data="members"),
+             InlineKeyboardButton(_t("menu_lang", L), callback_data="lang")],
+            [InlineKeyboardButton(_t("menu_help", L), callback_data="help")],
+        ]
     else:
-        buttons.append([
-            InlineKeyboardButton(_t("menu_my", L), callback_data="mylist"),
-            InlineKeyboardButton(_t("menu_lang", L), callback_data="lang"),
-        ])
+        buttons = [
+            [InlineKeyboardButton(_t("menu_status", L), callback_data="list")],
+            [InlineKeyboardButton(_t("menu_done", L), callback_data="done"),
+             InlineKeyboardButton(_t("menu_cancel", L), callback_data="cancel_menu")],
+            [InlineKeyboardButton(_t("menu_my", L), callback_data="mylist"),
+             InlineKeyboardButton(_t("menu_lang", L), callback_data="lang")],
+            [InlineKeyboardButton(_t("menu_help", L), callback_data="help")],
+        ]
     return InlineKeyboardMarkup(buttons)
 
 
@@ -719,6 +732,16 @@ async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────
 # 🌐 언어 선택
 # ──────────────────────────────────────────
+
+async def cb_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """사용법 안내 — CEO/일반 멤버 구분"""
+    query = update.callback_query
+    await query.answer()
+    user_id = str(query.from_user.id)
+    lang = _get_user_lang(user_id)
+    key = "help_ceo" if _is_admin(user_id) else "help_member"
+    await _dm(query, context, _t(key, lang), _back_kb(lang))
+
 
 async def cb_lang_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -901,11 +924,17 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = str(query.from_user.id)
     lang = _get_user_lang(user_id)
+
+    # CEO 전용
+    if not _is_admin(user_id):
+        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
+        return
+
     # 최신 데이터를 반드시 파일에서 읽기
     data = _load_data()
 
     # CEO가 data에 없으면 자동 등록
-    if _is_admin(user_id) and user_id not in data["users"]:
+    if user_id not in data["users"]:
         data = _ensure_admin_in_data(query.from_user, data)
         data = _load_data()  # 저장 후 다시 읽기
 
@@ -1535,6 +1564,7 @@ async def start_telegram_bot():
     _bot_app.add_handler(CommandHandler("debug", cmd_debug))
 
     _bot_app.add_handler(CallbackQueryHandler(cb_menu, pattern="^menu$"))
+    _bot_app.add_handler(CallbackQueryHandler(cb_help, pattern="^help$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_lang_start, pattern="^lang$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_set_lang, pattern=r"^setlang:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_members_start, pattern="^members$"))
