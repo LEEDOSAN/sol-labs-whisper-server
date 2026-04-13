@@ -54,14 +54,11 @@ _T = {
         "card_assigned": "담당", "card_task": "내용", "card_due": "마감",
         "card_status": "상태", "card_by": "등록자", "card_progress": "진행",
         # 상태
-        "st_pending": "⚪ 대기", "st_started": "🔵 시작", "st_progress": "🟡 진행중",
+        "st_pending": "⚪ 대기", "st_progress": "🟡 진행중",
         "st_done": "✅ 완료", "st_cancelled": "🔴 취소",
         # 메시지
         "welcome": "👋 SOL LABS 업무관리 봇입니다!",
-        "task_assigned_notice": "@{assignee} 업무가 배정되었습니다. 시작하려면 👤 내 업무에서 🔵 시작 버튼을 눌러주세요!",
-        "start_btn": "🔵 시작",
-        "started_group": "@{name}님이 업무 #{id}을 시작했습니다 🔵",
-        "started_ceo": "{name}님이 업무 #{id}을 시작했습니다",
+        "task_assigned_notice": "@{assignee} 업무가 배정되었습니다!",
         "no_role": "아직 역할이 없습니다.\nCEO에게 역할 부여를 요청해주세요.",
         "no_perm": "❌ 권한이 없습니다.",
         "members_only": "❌ 멤버 관리는 CEO만 가능합니다.",
@@ -121,12 +118,9 @@ _T = {
         "menu_home": "🏠 Main Menu", "menu_refresh": "🔄 Refresh",
         "card_assigned": "Assigned", "card_task": "Task", "card_due": "Due",
         "card_status": "Status", "card_by": "By", "card_progress": "Progress",
-        "st_pending": "⚪ Pending", "st_started": "🔵 Started", "st_progress": "🟡 In Progress",
+        "st_pending": "⚪ Pending", "st_progress": "🟡 In Progress",
         "st_done": "✅ Done", "st_cancelled": "🔴 Cancelled",
-        "task_assigned_notice": "@{assignee} A task has been assigned. Press 🔵 Start in 👤 My Tasks to begin!",
-        "start_btn": "🔵 Start",
-        "started_group": "@{name} started task #{id} 🔵",
-        "started_ceo": "{name} started task #{id}",
+        "task_assigned_notice": "@{assignee} A task has been assigned!",
         "welcome": "👋 SOL LABS Task Manager Bot!",
         "no_role": "You don't have a role yet.\nPlease ask the CEO to assign one.",
         "no_perm": "❌ No permission.",
@@ -181,12 +175,9 @@ _T = {
         "menu_home": "🏠 Главное меню", "menu_refresh": "🔄 Обновить",
         "card_assigned": "Исполнитель", "card_task": "Задача", "card_due": "Срок",
         "card_status": "Статус", "card_by": "От", "card_progress": "Прогресс",
-        "st_pending": "⚪ Ожидание", "st_started": "🔵 Начато", "st_progress": "🟡 В работе",
+        "st_pending": "⚪ Ожидание", "st_progress": "🟡 В работе",
         "st_done": "✅ Готово", "st_cancelled": "🔴 Отменено",
-        "task_assigned_notice": "@{assignee} Вам назначена задача. Нажмите 🔵 Начать в 👤 Мои задачи!",
-        "start_btn": "🔵 Начать",
-        "started_group": "@{name} начал(а) задачу #{id} 🔵",
-        "started_ceo": "{name} начал(а) задачу #{id}",
+        "task_assigned_notice": "@{assignee} Вам назначена задача!",
         "welcome": "👋 SOL LABS — бот управления задачами!",
         "no_role": "У вас ещё нет роли.\nПопросите CEO назначить вам роль.",
         "no_perm": "❌ Нет доступа.",
@@ -241,12 +232,9 @@ _T = {
         "menu_home": "🏠 Asosiy menyu", "menu_refresh": "🔄 Yangilash",
         "card_assigned": "Mas'ul", "card_task": "Vazifa", "card_due": "Muddat",
         "card_status": "Holat", "card_by": "Kim", "card_progress": "Jarayon",
-        "st_pending": "⚪ Kutilmoqda", "st_started": "🔵 Boshlandi", "st_progress": "🟡 Jarayonda",
+        "st_pending": "⚪ Kutilmoqda", "st_progress": "🟡 Jarayonda",
         "st_done": "✅ Bajarildi", "st_cancelled": "🔴 Bekor",
-        "task_assigned_notice": "@{assignee} Vazifa tayinlandi. 👤 Mening bo'limida 🔵 Boshlash tugmasini bosing!",
-        "start_btn": "🔵 Boshlash",
-        "started_group": "@{name} vazifa #{id}ni boshladi 🔵",
-        "started_ceo": "{name} vazifa #{id}ni boshladi",
+        "task_assigned_notice": "@{assignee} Vazifa tayinlandi!",
         "welcome": "👋 SOL LABS vazifa boshqaruv boti!",
         "no_role": "Sizga rol tayinlanmagan.\nCEOdan rol so'rang.",
         "no_perm": "❌ Ruxsat yo'q.",
@@ -296,7 +284,7 @@ _T = {
 }
 
 # 내부 상태값 → 번역 키 매핑
-_STATUS_KEY = {"대기": "st_pending", "시작": "st_started", "진행중": "st_progress", "완료": "st_done", "취소": "st_cancelled"}
+_STATUS_KEY = {"대기": "st_pending", "진행중": "st_progress", "완료": "st_done", "취소": "st_cancelled"}
 
 
 def _t(key: str, lang: str = "ko") -> str:
@@ -1244,10 +1232,7 @@ async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buttons = []
     for t in my:
         lines += [_format_task_card(t, data["users"], lang), ""]
-        if t["status"] == "대기":
-            buttons.append([InlineKeyboardButton(
-                f"{_t('start_btn', lang)} #{t['id']:03d}", callback_data=f"st:{t['id']}")])
-        elif t["status"] in ("시작", "진행중"):
+        if t["status"] not in ("완료", "취소"):
             buttons.append([InlineKeyboardButton(
                 f"{_t('upd_btn', lang)} #{t['id']:03d}", callback_data=f"up:{t['id']}")])
     buttons.append([InlineKeyboardButton(_t("menu_home", lang), callback_data="menu")])
@@ -1255,48 +1240,6 @@ async def cb_mylist(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(text) > 4000:
         text = text[:4000] + "\n..."
     await _dm(query, context, text, InlineKeyboardMarkup(buttons))
-
-
-async def cb_start_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """🔵 시작 버튼 — 대기 → 시작 전환 + 그룹 공개 + CEO DM"""
-    query = update.callback_query
-    await query.answer()
-    user_id = str(query.from_user.id)
-    lang = _get_user_lang(user_id)
-    task_id = int(query.data.split(":")[1])
-    data = _load_data()
-    uname = data["users"].get(user_id, {}).get("name", "")
-    gcid = context.user_data.get("group_chat_id")
-
-    task = next((t for t in data["tasks"] if t["id"] == task_id), None)
-    if not task:
-        await _dm(query, context, _t("not_found", lang), _back_kb(lang))
-        return
-
-    task["status"] = "시작"
-    task["updates"].append({"date": datetime.now(KST).strftime("%Y-%m-%d %H:%M"), "content": "시작", "by": uname})
-    _save_data(data)
-
-    # DM 확인
-    await _dm(query, context,
-        f"🔵 #{task_id:03d}\n\n{_format_task_card(task, data['users'], lang)}",
-        _main_menu_kb(user_id, lang))
-
-    # 그룹 공개
-    group_msg = _t("started_group", "ko").format(name=uname, id=f"{task_id:03d}")
-    await _post_group(context, gcid, group_msg)
-    if not gcid:
-        for cid in _get_group_chat_ids():
-            await _post_group(context, int(cid), group_msg)
-
-    # CEO DM 알림
-    if TELEGRAM_ADMIN_ID and str(user_id) != str(TELEGRAM_ADMIN_ID):
-        ceo_lang = _get_user_lang(str(TELEGRAM_ADMIN_ID))
-        ceo_msg = _t("started_ceo", ceo_lang).format(name=uname, id=f"{task_id:03d}")
-        try:
-            await context.bot.send_message(chat_id=int(TELEGRAM_ADMIN_ID), text=ceo_msg)
-        except Exception:
-            pass
 
 
 async def cb_update_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1341,12 +1284,21 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
         "content": translated or text,
         "content_original": text if translated else None, "by": uname})
     _save_data(data)
+    gcid = context.user_data.get("group_chat_id")
     _clear_state(context, user_id)
 
+    # DM 확인
     reply = f"{_t('upd_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}"
     if translated and text != translated:
         reply += f"\n\n[{_t('original', lang)}] {text}\n[{_t('translated', lang)}] {translated}"
     await update.message.reply_text(reply, reply_markup=_main_menu_kb(user_id, lang))
+
+    # 그룹방 공개
+    group_msg = f"🔄 {_t('upd_ok', 'ko').format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], 'ko')}"
+    await _post_group(context, gcid, group_msg)
+    if not gcid:
+        for cid in _get_group_chat_ids():
+            await _post_group(context, int(cid), group_msg)
 
 
 # ──────────────────────────────────────────
@@ -1597,7 +1549,6 @@ async def start_telegram_bot():
     _bot_app.add_handler(CallbackQueryHandler(cb_cancel_start, pattern="^cancel_menu$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_cancel, pattern=r"^ca:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_mylist, pattern="^mylist$"))
-    _bot_app.add_handler(CallbackQueryHandler(cb_start_task, pattern=r"^st:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_update_start, pattern=r"^up:"))
     _bot_app.add_handler(CallbackQueryHandler(cb_report, pattern="^report$"))
 
