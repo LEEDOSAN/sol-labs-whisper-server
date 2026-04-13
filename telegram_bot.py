@@ -798,14 +798,25 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = str(query.from_user.id)
     lang = _get_user_lang(user_id)
+    # 최신 데이터를 반드시 파일에서 읽기
     data = _load_data()
+
+    # CEO가 data에 없으면 자동 등록
+    if _is_admin(user_id) and user_id not in data["users"]:
+        data = _ensure_admin_in_data(query.from_user, data)
+        data = _load_data()  # 저장 후 다시 읽기
+
     if not _get_user_role(user_id, data):
         await _dm(query, context, _t("no_role", lang), _back_kb(lang))
         return
 
+    # 역할이 있는 모든 유저를 담당자 목록에 표시
+    members = {uid: uinfo for uid, uinfo in data["users"].items() if uinfo.get("role")}
+    print(f"[task-start] 담당자 목록: {len(members)}명 — {[u['name'] for u in members.values()]}", flush=True)
+
     buttons = []
     row = []
-    for uid, uinfo in data["users"].items():
+    for uid, uinfo in members.items():
         row.append(InlineKeyboardButton(uinfo["name"], callback_data=f"ta:{uid}"))
         if len(row) == 2:
             buttons.append(row)
