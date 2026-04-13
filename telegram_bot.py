@@ -327,13 +327,14 @@ def _set_user_lang(user_id, lang: str):
 
 
 def _save_group_chat_id(chat_id: int):
-    data = _load_data()
-    if "group_chat_ids" not in data:
-        data["group_chat_ids"] = []
+    # 저장 직전에 최신 데이터를 다시 읽어서 해당 필드만 수정
     cid = str(chat_id)
-    if cid not in data["group_chat_ids"]:
-        data["group_chat_ids"].append(cid)
-        _save_data(data)
+    fresh = _load_data()
+    if "group_chat_ids" not in fresh:
+        fresh["group_chat_ids"] = []
+    if cid not in fresh["group_chat_ids"]:
+        fresh["group_chat_ids"].append(cid)
+        _save_data(fresh)
         print(f"[telegram-bot] 그룹챗 등록: {chat_id}", flush=True)
 
 
@@ -362,22 +363,30 @@ def _ensure_admin_in_data(user, data: dict) -> dict:
     name = user.full_name or user.username or "CEO"
     username = user.username or ""
     if uid not in data["users"] or data["users"][uid].get("role") != "CEO":
-        data["users"][uid] = {"name": name, "role": "CEO", "username": username}
-        _save_data(data)
+        # 최신 데이터를 다시 읽어서 admin만 추가 후 저장 (다른 필드 보존)
+        fresh = _load_data()
+        fresh["users"][uid] = {"name": name, "role": "CEO", "username": username}
+        _save_data(fresh)
+        data["users"][uid] = fresh["users"][uid]
     return data
 
 
 def _track_user(user):
-    data = _load_data()
-    if "known_users" not in data:
-        data["known_users"] = {}
     uid = str(user.id)
     name = user.full_name or user.username or "Unknown"
     username = user.username or ""
-    existing = data["known_users"].get(uid)
-    if not existing or existing.get("name") != name:
-        data["known_users"][uid] = {"name": name, "username": username}
-        _save_data(data)
+    # 변경 필요 여부를 먼저 확인
+    data = _load_data()
+    known = data.get("known_users", {})
+    existing = known.get(uid)
+    if existing and existing.get("name") == name:
+        return  # 변경 없음 — 파일 쓰기 불필요
+    # 저장 직전에 최신 데이터를 다시 읽어서 known_users만 수정 (다른 필드 보존)
+    fresh = _load_data()
+    if "known_users" not in fresh:
+        fresh["known_users"] = {}
+    fresh["known_users"][uid] = {"name": name, "username": username}
+    _save_data(fresh)
 
 
 # ──────────────────────────────────────────
