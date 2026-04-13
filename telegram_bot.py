@@ -318,7 +318,7 @@ _T = {
     "uz": {
         "menu_task": "📋 Vazifa", "menu_status": "📊 Holat",
         "menu_done": "✅ Bajarildi", "menu_cancel": "❌ Bekor",
-        "menu_my": "👤 Mening", "menu_report": "📈 Hisobot",
+        "menu_my": "👤 Mening vazifalarim", "menu_report": "📈 Hisobot",
         "menu_members": "👥 A'zolar", "menu_lang": "🌐 Til",
         "menu_home": "🏠 Asosiy menyu", "menu_refresh": "🔄 Yangilash",
         "card_assigned": "Mas'ul", "card_task": "Vazifa", "card_due": "Muddat",
@@ -327,8 +327,8 @@ _T = {
         "st_done": "✅ Bajarildi", "st_cancelled": "🔴 Bekor",
         "task_assigned_notice": "@{assignee} Sizga vazifa tayinlandi! 👤 Mening vazifalarim bo'limida jarayonni yangilang 📝",
         "menu_help": "❓ Yordam",
-        "help_ceo": "📖 SOL LABS AI Bot Qo'llanma (CEO)\n\n1️⃣ Vazifa yaratish\n📋 Vazifa → Mas'ul → Tavsif → Muddat → Ustuvorlik\n→ Guruhda e'lon qilinadi\n\n2️⃣ Holat\n📊 Holat → Barcha vazifalar (ustuvorlik bo'yicha)\n\n3️⃣ Mening vazifalarim\n👤 Mening → Vazifalar + jarayon yangilash\n\n4️⃣ Tahrirlash\n✏️ Tahrirlash → Vazifa → Mazmun/muddat\n\n5️⃣ Qayta tayinlash\n🔄 Qayta tayinlash → Vazifa → Yangi mas'ul\n\n6️⃣ Qidirish\n🔍 Qidirish → Kalit so'z → Natijalar\n\n7️⃣ A'zolar\n👥 A'zolar → Tanlang → Rol bering\n\n8️⃣ Hisobot / Oylik\n📈 To'liq hisobot → AI xulosa\n📊 Oylik → Bajarilganlik/kechikish\n\n9️⃣ Til\n🌐 Til → Tanlang",
-        "help_member": "📖 SOL LABS AI Bot Qo'llanma\n\n1️⃣ Mening vazifalarim\n👤 Mening → Tayinlangan vazifalar\n\n2️⃣ Jarayonni yangilash\n👤 Mening → 📝 Yangilash → % yoki matn kiriting\nMisol: 50% yoki \"API tayyor\"\n→ Guruhda e'lon qilinadi\n\n3️⃣ Yakunlash\n✅ Bajarildi → Vazifani tanlang\n→ Guruhda e'lon qilinadi\n\n4️⃣ Til\n🌐 Til → Tanlang",
+        "help_ceo": "📖 SOL LABS AI Bot Qo'llanma (CEO)\n\n1️⃣ Vazifa yaratish\n📋 Vazifa → Mas'ul → Tavsif → Muddat → Ustuvorlik\n→ Guruhda e'lon qilinadi\n\n2️⃣ Holat\n📊 Holat → Barcha vazifalar (ustuvorlik bo'yicha)\n\n3️⃣ Mening vazifalarim\n👤 Mening vazifalarim → Vazifalar + jarayon yangilash\n\n4️⃣ Tahrirlash\n✏️ Tahrirlash → Vazifa → Mazmun/muddat\n\n5️⃣ Qayta tayinlash\n🔄 Qayta tayinlash → Vazifa → Yangi mas'ul\n\n6️⃣ Qidirish\n🔍 Qidirish → Kalit so'z → Natijalar\n\n7️⃣ A'zolar\n👥 A'zolar → Tanlang → Rol bering\n\n8️⃣ Hisobot / Oylik\n📈 To'liq hisobot → AI xulosa\n📊 Oylik → Bajarilganlik/kechikish\n\n9️⃣ Til\n🌐 Til → Tanlang",
+        "help_member": "📖 SOL LABS AI Bot Qo'llanma\n\n1️⃣ Mening vazifalarim\n👤 Mening vazifalarim → Tayinlangan vazifalar\n\n2️⃣ Jarayonni yangilash\n👤 Mening vazifalarim → 📝 Yangilash → % yoki matn kiriting\nMisol: 50% yoki \"API tayyor\"\n→ Guruhda e'lon qilinadi\n\n3️⃣ Yakunlash\n✅ Bajarildi → Vazifani tanlang\n→ Guruhda e'lon qilinadi\n\n4️⃣ Til\n🌐 Til → Tanlang",
         "welcome": "👋 SOL LABS vazifa boshqaruv boti!",
         "no_role": "Sizga rol tayinlanmagan.\nCEOdan rol so'rang.",
         "no_perm": "❌ Ruxsat yo'q.",
@@ -696,7 +696,8 @@ def _main_menu_kb(user_id: str = None, lang: str = "ko"):
         ]
     else:
         buttons = [
-            [InlineKeyboardButton(_t("menu_status", L), callback_data="list")],
+            [InlineKeyboardButton(_t("menu_task", L), callback_data="task"),
+             InlineKeyboardButton(_t("menu_status", L), callback_data="list")],
             [InlineKeyboardButton(_t("menu_done", L), callback_data="done"),
              InlineKeyboardButton(_t("menu_cancel", L), callback_data="cancel_menu")],
             [InlineKeyboardButton(_t("menu_my", L), callback_data="mylist"),
@@ -1078,16 +1079,11 @@ async def cb_task_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(query.from_user.id)
     lang = _get_user_lang(user_id)
 
-    # CEO 전용
-    if not _is_admin(user_id):
-        await _dm(query, context, _t("no_perm", lang), _back_kb(lang))
-        return
-
     # 최신 데이터를 반드시 파일에서 읽기
     data = _load_data()
 
     # CEO가 data에 없으면 자동 등록
-    if user_id not in data["users"]:
+    if _is_admin(user_id) and user_id not in data["users"]:
         data = _ensure_admin_in_data(query.from_user, data)
         data = _load_data()  # 저장 후 다시 읽기
 
