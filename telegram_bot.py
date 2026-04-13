@@ -326,6 +326,58 @@ def _set_user_lang(user_id, lang: str):
     _save_lang(prefs)
 
 
+# ──────────────────────────────────────────
+# 영구 대화 상태 (서버 재시작에도 유지)
+# ──────────────────────────────────────────
+
+def _get_conv(user_id: str) -> dict:
+    """users.json에서 대화 상태 로드"""
+    prefs = _load_lang()
+    return prefs.get(f"_conv:{user_id}", {})
+
+
+def _save_conv(user_id: str, conv: dict):
+    """users.json에 대화 상태 저장"""
+    fresh = _load_lang()
+    if conv:
+        fresh[f"_conv:{user_id}"] = conv
+    else:
+        fresh.pop(f"_conv:{user_id}", None)
+    _save_lang(fresh)
+
+
+def _set_state(context, user_id: str, **kv):
+    """대화 상태를 메모리 + 파일 양쪽에 저장"""
+    for k, v in kv.items():
+        if v is None:
+            context.user_data.pop(k, None)
+        else:
+            context.user_data[k] = v
+    # 파일에도 영구 저장
+    conv = {k: v for k, v in context.user_data.items() if v is not None}
+    _save_conv(user_id, conv)
+    print(f"[state] user={user_id} set → {kv}", flush=True)
+
+
+def _clear_state(context, user_id: str):
+    """대화 상태 초기화 (group_chat_id 보존)"""
+    gcid = context.user_data.get("group_chat_id")
+    context.user_data.clear()
+    if gcid:
+        context.user_data["group_chat_id"] = gcid
+    _save_conv(user_id, {"group_chat_id": gcid} if gcid else {})
+    print(f"[state] user={user_id} cleared", flush=True)
+
+
+def _restore_state(context, user_id: str):
+    """서버 재시작 후 파일에서 대화 상태 복원"""
+    if not context.user_data.get("state"):
+        conv = _get_conv(user_id)
+        if conv.get("state"):
+            context.user_data.update(conv)
+            print(f"[state] user={user_id} restored → state={conv.get('state')}", flush=True)
+
+
 def _save_group_chat_id(chat_id: int):
     # 저장 직전에 최신 데이터를 다시 읽어서 해당 필드만 수정
     cid = str(chat_id)
@@ -595,11 +647,8 @@ async def _post_group(context, group_chat_id, text: str):
 # ──────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    gcid = context.user_data.get("group_chat_id")
-    context.user_data.clear()
-    if gcid:
-        context.user_data["group_chat_id"] = gcid
     user_id = str(update.effective_user.id)
+    _clear_state(context, user_id)
     lang = _get_user_lang(user_id)
     data = _load_data()
     _track_user(update.effective_user)
@@ -622,12 +671,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    gcid = context.user_data.get("group_chat_id")
-    context.user_data.clear()
-    if gcid:
-        context.user_data["group_chat_id"] = gcid
-
     user_id = str(query.from_user.id)
+    _clear_state(context, user_id)
     lang = _get_user_lang(user_id)
     data = _load_data()
 
@@ -838,24 +883,23 @@ async def cb_task_assignee(update: Update, context: ContextTypes.DEFAULT_TYPE):
     assignee_key = query.data.split(":")[1]
 
     if assignee_key == "custom":
-        context.user_data["state"] = "awaiting_task_assignee"
+        _set_state(context, user_id, state="awaiting_task_assignee")
         await _dm_prompt(query, context,
             f"{_t('task_title', lang)}\n\n{_t('enter_assignee', lang)}", lang)
         return
 
     data = _load_data()
-    context.user_data["task_assignee"] = data["users"].get(assignee_key, {}).get("name", assignee_key)
-    context.user_data["state"] = "awaiting_task_content"
-    a = context.user_data["task_assignee"]
+    a = data["users"].get(assignee_key, {}).get("name", assignee_key)
+    _set_state(context, user_id, state="awaiting_task_content", task_assignee=a)
     await _dm_prompt(query, context,
         f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {a}\n\n{_t('enter_content', lang)}", lang)
 
 
 async def _process_task_assignee_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = _get_user_lang(str(update.effective_user.id))
+    user_id = str(update.effective_user.id)
+    lang = _get_user_lang(user_id)
     name = update.message.text.strip()
-    context.user_data["task_assignee"] = name
-    context.user_data["state"] = "awaiting_task_content"
+    _set_state(context, user_id, state="awaiting_task_content", task_assignee=name)
     await _dm_prompt_msg(update.message,
         f"{_t('task_title', lang)}\n{_t('card_assigned', lang)}: {name}\n\n{_t('enter_content', lang)}", lang)
 
@@ -864,14 +908,16 @@ async def _process_task_content(update: Update, context: ContextTypes.DEFAULT_TY
     user_id = str(update.effective_user.id)
     lang = _get_user_lang(user_id)
     content = update.message.text.strip()
-    context.user_data["task_content"] = content
-    context.user_data["state"] = None
+    print(f"[task-content] user={user_id} content='{content[:50]}'", flush=True)
+
+    # 상태를 "마감일 대기"로 전환 (번역 중 서버 재시작 대비)
+    _set_state(context, user_id, state="awaiting_deadline_btn", task_content=content)
 
     translated = None
     if _needs_translation(content):
         translated = await _translate_to_korean(content)
         if translated:
-            context.user_data["task_translated"] = translated
+            _set_state(context, user_id, task_translated=translated)
 
     today = datetime.now(KST).date()
     buttons = [
@@ -898,7 +944,7 @@ async def cb_task_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
     option = query.data.split(":")[1]
 
     if option == "custom":
-        context.user_data["state"] = "awaiting_task_deadline"
+        _set_state(context, user_id, state="awaiting_task_deadline")
         await _dm_prompt(query, context, _t("enter_deadline", lang), lang)
         return
 
@@ -907,13 +953,13 @@ async def cb_task_deadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _process_task_deadline_custom(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = _get_user_lang(str(update.effective_user.id))
+    user_id = str(update.effective_user.id)
+    lang = _get_user_lang(user_id)
     deadline = update.message.text.strip()
     if not re.match(r'^\d{4}\.\d{2}\.\d{2}$', deadline):
-        context.user_data["state"] = "awaiting_task_deadline"
+        _set_state(context, user_id, state="awaiting_task_deadline")
         await _dm_prompt_msg(update.message, _t("bad_date", lang) + "\n" + _t("enter_deadline", lang), lang)
         return
-    context.user_data["state"] = None
     await _create_task_and_reply(update.effective_user.id, context, deadline, message=update.message)
 
 
@@ -954,9 +1000,7 @@ async def _create_task_and_reply(user_id, context, deadline, *, query=None, mess
     group_card = f"📋 New Task\n\n{_format_task_card(task, data['users'], 'ko')}"
     await _post_group(context, gcid, group_card)
 
-    context.user_data.clear()
-    if gcid:
-        context.user_data["group_chat_id"] = gcid
+    _clear_state(context, uid)
 
 
 # ──────────────────────────────────────────
@@ -1134,18 +1178,17 @@ async def cb_update_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     lang = _get_user_lang(str(query.from_user.id))
     task_id = int(query.data.split(":")[1])
-    context.user_data["state"] = "awaiting_progress"
-    context.user_data["update_task_id"] = task_id
+    _set_state(context, str(query.from_user.id), state="awaiting_progress", update_task_id=task_id)
     await _dm_prompt(query, context,
         f"{_t('upd_btn', lang)} #{task_id:03d}\n\n{_t('enter_progress', lang)}", lang)
 
 
 async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
     task_id = context.user_data.get("update_task_id")
     if not task_id:
-        context.user_data.clear()
+        _clear_state(context, user_id)
         return
-    user_id = str(update.effective_user.id)
     lang = _get_user_lang(user_id)
     data = _load_data()
     uname = data["users"].get(user_id, {}).get("name", "")
@@ -1153,7 +1196,7 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
     task = next((t for t in data["tasks"] if t["id"] == task_id), None)
     if not task:
         await update.message.reply_text(_t("not_found", lang), reply_markup=_back_kb(lang))
-        context.user_data.clear()
+        _clear_state(context, user_id)
         return
 
     translated = None
@@ -1172,10 +1215,7 @@ async def _process_progress_update(update: Update, context: ContextTypes.DEFAULT
         "content": translated or text,
         "content_original": text if translated else None, "by": uname})
     _save_data(data)
-    gcid = context.user_data.get("group_chat_id")
-    context.user_data.clear()
-    if gcid:
-        context.user_data["group_chat_id"] = gcid
+    _clear_state(context, user_id)
 
     reply = f"{_t('upd_ok', lang).format(id=f'{task_id:03d}')}\n\n{_format_task_card(task, data['users'], lang)}"
     if translated and text != translated:
@@ -1252,9 +1292,13 @@ async def cb_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────
 
 async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    # 메모리에 상태 없으면 파일에서 복원 (서버 재시작 대비)
+    _restore_state(context, user_id)
     state = context.user_data.get("state")
     if not state:
         return
+    print(f"[text-input] user={user_id} state={state} text='{(update.message.text or '')[:30]}'", flush=True)
     if state == "awaiting_task_assignee":
         await _process_task_assignee_custom(update, context)
     elif state == "awaiting_task_content":
