@@ -1054,6 +1054,25 @@ async def cmd_debug(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 
+async def cmd_testdm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/testdm — CEO 전용, 즉시 오늘의 개인 DM을 전송해서 스케줄러 정상 작동 확인"""
+    user_id = str(update.effective_user.id)
+    if not _is_admin(user_id):
+        await update.message.reply_text("❌ CEO only")
+        return
+    await update.message.reply_text("🧪 테스트 DM 전송 시작... (KST + UZT)")
+    try:
+        await _daily_personal_dm_for_tz(context, "KST")
+        await _daily_personal_dm_for_tz(context, "UZT")
+        job_queue = context.application.job_queue
+        jobs = [j.name for j in job_queue.jobs()] if job_queue else []
+        await update.message.reply_text(
+            f"✅ 테스트 DM 전송 완료\n📅 등록된 Job: {len(jobs)}개\n→ {jobs}")
+    except Exception as e:
+        print(f"[testdm] 실패: {e}", flush=True)
+        await update.message.reply_text(f"❌ 전송 실패: {e}")
+
+
 async def cmd_resetroles(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     lang = _get_user_lang(user_id)
@@ -2175,6 +2194,7 @@ async def start_telegram_bot():
     _bot_app.add_handler(CommandHandler("menu", cmd_start))
     _bot_app.add_handler(CommandHandler("resetroles", cmd_resetroles))
     _bot_app.add_handler(CommandHandler("debug", cmd_debug))
+    _bot_app.add_handler(CommandHandler("testdm", cmd_testdm))
 
     _bot_app.add_handler(CallbackQueryHandler(cb_menu, pattern="^menu$"))
     _bot_app.add_handler(CallbackQueryHandler(cb_help, pattern="^help$"))
@@ -2212,6 +2232,7 @@ async def start_telegram_bot():
         BotCommand("start", "Main Menu"),
         BotCommand("menu", "Main Menu"),
         BotCommand("resetroles", "Reset Roles (CEO)"),
+        BotCommand("testdm", "Test Daily DM (CEO)"),
     ])
 
     await _bot_app.initialize()
@@ -2221,12 +2242,21 @@ async def start_telegram_bot():
     job_queue = _bot_app.job_queue
     if job_queue:
         job_queue.run_daily(_daily_deadline_reminder, time=dt_time(hour=9, minute=0, tzinfo=KST), name="daily_reminder")
+        print("[scheduler] ✅ 매일 KST 09:00 마감 알림 등록 완료 (daily_reminder)", flush=True)
+
         job_queue.run_daily(_daily_personal_dm_kst, time=dt_time(hour=10, minute=0, tzinfo=KST), name="dm_kst")
+        print("[scheduler] ✅ 매일 KST 10:00 개인 DM 알림 등록 완료 (dm_kst)", flush=True)
+
         job_queue.run_daily(_daily_personal_dm_uzt, time=dt_time(hour=14, minute=0, tzinfo=KST), name="dm_uzt")
+        print("[scheduler] ✅ 매일 UZT 10:00 (= KST 14:00) 개인 DM 알림 등록 완료 (dm_uzt)", flush=True)
+
         job_queue.run_daily(_weekly_report_job, time=dt_time(hour=9, minute=0, tzinfo=KST), days=(0,), name="weekly_report")
-        print("[telegram-bot] 스케줄: 9시 마감알림 + 10시KST/14시UZT DM + 매주 월 9시 주간보고", flush=True)
+        print("[scheduler] ✅ 매주 월요일 KST 09:00 주간 보고서 등록 완료 (weekly_report)", flush=True)
+
+        registered = [j.name for j in job_queue.jobs()]
+        print(f"[scheduler] 총 등록된 Job: {len(registered)}개 → {registered}", flush=True)
     else:
-        print("[telegram-bot] JobQueue 미사용 (APScheduler 미설치)", flush=True)
+        print("[scheduler] ❌ JobQueue 미사용 (APScheduler 미설치) — pip install 'python-telegram-bot[job-queue]' 필요", flush=True)
 
     print("[telegram-bot] 봇 시작됨 ✅", flush=True)
 

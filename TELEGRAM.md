@@ -48,6 +48,16 @@
 - /menu: 메인 메뉴
 - /debug: 데이터 확인 (CEO 전용)
 - /resetroles: 역할 초기화 (CEO 전용)
+- /testdm: 개인 DM 즉시 전송 테스트 (CEO 전용, 스케줄러 확인용)
+
+## 스케줄러 Job 목록
+- daily_reminder: 매일 KST 09:00 — 마감일 자동 알림 (그룹방)
+- dm_kst: 매일 KST 10:00 — KST 유저 개인 DM
+- dm_uzt: 매일 KST 14:00 (= UZT 10:00) — UZT 유저 개인 DM
+- weekly_report: 매주 월요일 KST 09:00 — 주간 AI 보고서
+
+※ 스케줄러 로그는 봇 시작 시 `[scheduler]` 접두어로 출력됨
+※ 작동 안 할 경우 Railway 로그에서 `[scheduler]` 검색해 등록 여부 확인
 
 ## 개발 규칙
 - 신규 기능 추가 시 TELEGRAM.md 업데이트 필수
