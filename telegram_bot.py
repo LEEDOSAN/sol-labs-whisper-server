@@ -22,6 +22,8 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # 환경변수
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -1064,10 +1066,11 @@ async def cmd_testdm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await _daily_personal_dm_for_tz(context, "KST")
         await _daily_personal_dm_for_tz(context, "UZT")
-        job_queue = context.application.job_queue
-        jobs = [j.name for j in job_queue.jobs()] if job_queue else []
-        await update.message.reply_text(
-            f"✅ 테스트 DM 전송 완료\n📅 등록된 Job: {len(jobs)}개\n→ {jobs}")
+        jobs = _scheduler.get_jobs() if _scheduler else []
+        lines = [f"✅ 테스트 DM 전송 완료", f"📅 등록된 Job: {len(jobs)}개"]
+        for j in jobs:
+            lines.append(f"  → {j.id}: 다음 {j.next_run_time}")
+        await update.message.reply_text("\n".join(lines))
     except Exception as e:
         print(f"[testdm] 실패: {e}", flush=True)
         await update.message.reply_text(f"❌ 전송 실패: {e}")
@@ -2180,6 +2183,34 @@ async def _weekly_report_job(context: ContextTypes.DEFAULT_TYPE):
 # ──────────────────────────────────────────
 
 _bot_app: Application | None = None
+_scheduler: AsyncIOScheduler | None = None
+
+
+class _SchedCtx:
+    """APScheduler용 최소 context — .bot / .application 속성만 제공"""
+    def __init__(self, app: Application):
+        self.bot = app.bot
+        self.application = app
+
+
+async def _run_deadline_reminder():
+    if _bot_app:
+        await _daily_deadline_reminder(_SchedCtx(_bot_app))
+
+
+async def _run_dm_kst():
+    if _bot_app:
+        await _daily_personal_dm_kst(_SchedCtx(_bot_app))
+
+
+async def _run_dm_uzt():
+    if _bot_app:
+        await _daily_personal_dm_uzt(_SchedCtx(_bot_app))
+
+
+async def _run_weekly_report():
+    if _bot_app:
+        await _weekly_report_job(_SchedCtx(_bot_app))
 
 
 async def start_telegram_bot():
@@ -2239,30 +2270,38 @@ async def start_telegram_bot():
     await _bot_app.start()
     await _bot_app.updater.start_polling(drop_pending_updates=True)
 
-    job_queue = _bot_app.job_queue
-    if job_queue:
-        job_queue.run_daily(_daily_deadline_reminder, time=dt_time(hour=9, minute=0, tzinfo=KST), name="daily_reminder")
-        print("[scheduler] ✅ 매일 KST 09:00 마감 알림 등록 완료 (daily_reminder)", flush=True)
+    # APScheduler로 스케줄 등록 (KST 기준)
+    global _scheduler
+    UZT = ZoneInfo("Asia/Tashkent")
+    _scheduler = AsyncIOScheduler(timezone=KST)
 
-        job_queue.run_daily(_daily_personal_dm_kst, time=dt_time(hour=10, minute=0, tzinfo=KST), name="dm_kst")
-        print("[scheduler] ✅ 매일 KST 10:00 개인 DM 알림 등록 완료 (dm_kst)", flush=True)
+    _scheduler.add_job(_run_deadline_reminder, CronTrigger(hour=9, minute=0, timezone=KST), id="daily_reminder", name="daily_reminder")
+    print("[scheduler] ✅ KST 09:00 마감 알림 등록 완료 (daily_reminder)", flush=True)
 
-        job_queue.run_daily(_daily_personal_dm_uzt, time=dt_time(hour=14, minute=0, tzinfo=KST), name="dm_uzt")
-        print("[scheduler] ✅ 매일 UZT 10:00 (= KST 14:00) 개인 DM 알림 등록 완료 (dm_uzt)", flush=True)
+    _scheduler.add_job(_run_dm_kst, CronTrigger(hour=10, minute=0, timezone=KST), id="dm_kst", name="dm_kst")
+    print("[scheduler] ✅ KST 10:00 등록 완료 (dm_kst)", flush=True)
 
-        job_queue.run_daily(_weekly_report_job, time=dt_time(hour=9, minute=0, tzinfo=KST), days=(0,), name="weekly_report")
-        print("[scheduler] ✅ 매주 월요일 KST 09:00 주간 보고서 등록 완료 (weekly_report)", flush=True)
+    _scheduler.add_job(_run_dm_uzt, CronTrigger(hour=10, minute=0, timezone=UZT), id="dm_uzt", name="dm_uzt")
+    print("[scheduler] ✅ UZT 10:00 (KST 14:00) 등록 완료 (dm_uzt)", flush=True)
 
-        registered = [j.name for j in job_queue.jobs()]
-        print(f"[scheduler] 총 등록된 Job: {len(registered)}개 → {registered}", flush=True)
-    else:
-        print("[scheduler] ❌ JobQueue 미사용 (APScheduler 미설치) — pip install 'python-telegram-bot[job-queue]' 필요", flush=True)
+    _scheduler.add_job(_run_weekly_report, CronTrigger(day_of_week="mon", hour=9, minute=0, timezone=KST), id="weekly_report", name="weekly_report")
+    print("[scheduler] ✅ 매주 월요일 KST 09:00 주간 보고서 등록 완료 (weekly_report)", flush=True)
+
+    _scheduler.start()
+    registered = [j.id for j in _scheduler.get_jobs()]
+    print(f"[scheduler] 🚀 APScheduler 시작됨 — 총 {len(registered)}개 Job: {registered}", flush=True)
+    for j in _scheduler.get_jobs():
+        print(f"[scheduler]   → {j.id}: 다음 실행 = {j.next_run_time}", flush=True)
 
     print("[telegram-bot] 봇 시작됨 ✅", flush=True)
 
 
 async def stop_telegram_bot():
-    global _bot_app
+    global _bot_app, _scheduler
+    if _scheduler:
+        _scheduler.shutdown(wait=False)
+        _scheduler = None
+        print("[scheduler] APScheduler 종료됨", flush=True)
     if _bot_app:
         await _bot_app.updater.stop()
         await _bot_app.stop()

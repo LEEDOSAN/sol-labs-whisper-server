@@ -50,14 +50,19 @@
 - /resetroles: 역할 초기화 (CEO 전용)
 - /testdm: 개인 DM 즉시 전송 테스트 (CEO 전용, 스케줄러 확인용)
 
-## 스케줄러 Job 목록
+## 스케줄러 (APScheduler)
+- 라이브러리: APScheduler (AsyncIOScheduler + CronTrigger)
+- 이유: python-telegram-bot JobQueue 의존성 누락으로 실패 → APScheduler로 교체
+- 필수 패키지: `apscheduler>=3.10.0` + `python-telegram-bot[job-queue]>=20.0`
+
+### Job 목록
 - daily_reminder: 매일 KST 09:00 — 마감일 자동 알림 (그룹방)
 - dm_kst: 매일 KST 10:00 — KST 유저 개인 DM
-- dm_uzt: 매일 KST 14:00 (= UZT 10:00) — UZT 유저 개인 DM
+- dm_uzt: 매일 UZT 10:00 (= KST 14:00) — UZT 유저 개인 DM
 - weekly_report: 매주 월요일 KST 09:00 — 주간 AI 보고서
 
 ※ 스케줄러 로그는 봇 시작 시 `[scheduler]` 접두어로 출력됨
-※ 작동 안 할 경우 Railway 로그에서 `[scheduler]` 검색해 등록 여부 확인
+※ 작동 안 할 경우 Railway 로그에서 `[scheduler]` 검색해 등록 여부 + 다음 실행 시간 확인
 
 ## 개발 규칙
 - 신규 기능 추가 시 TELEGRAM.md 업데이트 필수
